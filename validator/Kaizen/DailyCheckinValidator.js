@@ -58,7 +58,7 @@ class DailyCheckinValidator {
           };
         }
 
-        if (!student.created_by || student.created_by.trim() === "") {
+        if (!student.created_by) {
           return {
             code: 1,
             message: `Created by is required for student ${student.student_code}`,
@@ -77,7 +77,7 @@ class DailyCheckinValidator {
         }
 
         for (const checkIn of student.check_in) {
-          if (!checkIn.class_session || checkIn.class_session.trim() === "") {
+          if (!checkIn.class_session) {
             return {
               code: 1,
               message: `Class session is required for student ${student.student_code}`,
@@ -85,8 +85,7 @@ class DailyCheckinValidator {
           }
 
           if (
-            !checkIn.type_checkin_id ||
-            checkIn.type_checkin_id.trim() === ""
+            !checkIn.type_checkin_id
           ) {
             return {
               code: 1,
@@ -123,23 +122,25 @@ class DailyCheckinValidator {
             };
           }
 
-          if (!checkIn.reason_id || checkIn.reason_id.trim() === "") {
-            return {
-              code: 1,
-              message: `Reason ID is required for student ${student.student_code}`,
-            };
-          }
+          if (type.id === 4) {
+            if (!checkIn.reason_id) {
+              return {
+                code: 1,
+                message: `Reason ID is required for student ${student.student_code}`,
+              };
+            }
 
-          const rs = await ConfigModel.find(["id"], {
-            id: checkIn.reason_id,
-            properties: 32,
-          });
+            const rs = await ConfigModel.find(["id"], {
+              id: checkIn.reason_id,
+              properties: 32,
+            });
 
-          if (!rs || !rs.id) {
-            return {
-              code: 1,
-              message: `Reason ID not exist for student ${student.student_code}`,
-            };
+            if (!rs || !rs.id) {
+              return {
+                code: 1,
+                message: `Reason ID not exist for student ${student.student_code}`,
+              };
+            }
           }
 
           if (checkIn.comment !== undefined && checkIn.comment !== null) {
