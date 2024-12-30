@@ -8,18 +8,20 @@ class DailyCheckinController {
   static async create(req, res) {
     let validate = await DailyCheckinValidator.validateCreate(req.body);
 
-    if (validate.code == 1) {
-      Response.validator(res, validate);
+    if (validate.code === 1) {
+      return Response.validator(res, validate);
     }
 
-    DailyCheckinService.create(req.body)
-      .then((result) => {``
-        Response.response(res, "Created");
+    return DailyCheckinService.create(req.body)
+      .then((result) => {
+        return Response.response(res, "Created");
       })
       .catch((error) => {
-        Response.response(res, "Error");
+        return Response.response(res, "Error");
       });
   }
+
+  static async getList(req, res) {}
 }
 
 module.exports = DailyCheckinController;

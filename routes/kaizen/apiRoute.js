@@ -80,6 +80,7 @@ router.get('/program', ProgramController.getList);
 // router.delete('/:id', userController.deleteUser);
 
 router.post('/daily-checkin', DailyCheckinController.create);
+router.post('/daily-checkin/get-list', DailyCheckinController.getList);
 
 // PTN
 router.get('/ptn/courses', PTNCoursesController.getList);
