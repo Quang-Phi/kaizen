@@ -1,0 +1,32 @@
+networks:
+  shared-network:
+    # driver: bridge
+    external: true
+services:
+  nodejs_kaizen:
+    container_name: ${APP_NAME}
+    user: ${WEB_GROUP}:${WEB_USER}
+    platform: linux/amd64
+    build: 
+      context: .
+      dockerfile: Dockerfile
+      args:
+        APP_NAME : ${APP_NAME}
+        WEB_UID: ${WEB_UID}
+        WEB_GID: ${WEB_GID} 
+        WEB_USER: ${WEB_USER}
+        WEB_GROUP: ${WEB_GROUP}
+        WWW_DIR: ${WWW_DIR}
+        LOG_DIR: ${LOG_DIR}
+    image: ${APP_NAME}:${APP_VERSION} # Gán version vào tên image"
+    ports:
+      # - "${HTTP_PORT}:${HTTP_PORT}"
+      - "${HTTPS_PORT}:${HTTPS_PORT}"
+    restart: always
+    volumes:
+      - ./:/home/${WEB_USER}/${APP_NAME}
+      - /home/${WEB_USER}/${APP_NAME}/node_modules
+    environment:
+      IuB: ${IuB}
+    networks:
+      - shared-network

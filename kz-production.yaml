@@ -1,0 +1,176 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: kz-api
+  namespace: kaizen
+  labels:
+    app: kz-api
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: kz-api
+  template:
+    metadata:
+      labels:
+        app: kz-api
+    spec:
+      containers:
+      - name: kaizen-backend
+        image: s2bantnd/kaizen_backend:0.0.274
+        ports:
+        - containerPort: 3000
+        - containerPort: 8000
+        # - containerPort: 8080
+        # - containerPort: 8443
+        resources:
+          limits:
+            memory: 512Mi
+            cpu: "1"
+          requests:
+            memory: 128Mi
+            cpu: "0.2"
+        env:
+          - name: HTTP_PORT
+            valueFrom:
+              secretKeyRef:
+                name: kz-secret
+                key: HTTP_PORT
+          - name: HTTPS_PORT
+            valueFrom:
+              secretKeyRef:
+                name: kz-secret
+                key: HTTPS_PORT
+          - name: APP_IP
+            valueFrom:
+              secretKeyRef:
+                name: kz-secret
+                key: APP_IP
+          - name: DB_CONNECTION
+            valueFrom:
+              secretKeyRef:
+                name: kz-secret
+                key: DB_CONNECTION
+          - name: DB_HOST_1
+            valueFrom:
+              secretKeyRef:
+                name: kz-secret
+                key: DB_HOST_1
+          - name: DB_PORT_1
+            valueFrom:
+              secretKeyRef:
+                name: kz-secret
+                key: DB_PORT_1
+          - name: DB_DATABASE_1
+            valueFrom:
+              secretKeyRef:
+                name: kz-secret
+                key: DB_DATABASE_1
+          - name: DB_USERNAME_1
+            valueFrom:
+              secretKeyRef:
+                name: kz-secret
+                key: DB_USERNAME_1
+          - name: DB_PASSWORD_1
+            valueFrom:
+              secretKeyRef:
+                name: kz-secret
+                key: DB_PASSWORD_1
+          - name: SHARE_POINT_USER
+            valueFrom:
+              secretKeyRef:
+                name: kz-secret
+                key: SHARE_POINT_USER
+          - name: SHARE_POINT_PASSWORD
+            valueFrom:
+              secretKeyRef:
+                name: kz-secret
+                key: SHARE_POINT_PASSWORD
+          - name: SHARE_POINT_IP
+            valueFrom:
+              secretKeyRef:
+                name: kz-secret
+                key: SHARE_POINT_IP
+          - name: SHARE_POINT_PORT
+            valueFrom:
+              secretKeyRef:
+                name: kz-secret
+                key: SHARE_POINT_PORT
+          - name: BITRIX_URL
+            valueFrom:
+              secretKeyRef:
+                name: kz-secret
+                key: BITRIX_URL
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: kz-api
+  namespace: kaizen
+spec:
+  selector:
+    app: kz-api
+  # type: LoadBalancer
+  type: ClusterIP
+  # ports:
+  # - protocol: TCP
+  #   port: 443
+  #   targetPort: 3000
+  # ports:
+  #   - protocol: TCP
+  #     port: 3000
+  #     targetPort: 3000
+  ports:
+  - name: http
+    protocol: TCP
+    port: 80
+    # targetPort: 8080
+    # targetPort: 8000
+    targetPort: 3000
+  # - name: http
+  #   protocol: TCP
+  #   port: 80
+  #   targetPort: 8080
+  - name: https
+    protocol: TCP
+    port: 443
+    targetPort: 3000
+  #   # targetPort: 8443
+---
+apiVersion: v1
+kind: Secret
+metadata:
+  name: kz-secret
+  namespace: kaizen
+type: Opaque
+data:
+  HTTP_PORT: ODAwMAo=
+  HTTPS_PORT: MzAwMA==
+  APP_IP: MC4wLjAuMA==
+  DB_CONNECTION: bXlzcWw=
+  DB_HOST_1: MTcyLjE0MC4xMi4xMA==
+  DB_PORT_1: MzMwNg==
+  DB_DATABASE_1: a2FpemVu
+  DB_USERNAME_1: a2FpemVuX2FwaQ==
+  DB_PASSWORD_1: RTtoKS5KMWkobE97KCMsd2opcjs=
+  SHARE_POINT_USER: YXBpYml0cml4
+  SHARE_POINT_PASSWORD: dVhNSVpZTzRjMTk5ekAhRXQwd0s=
+  SHARE_POINT_IP: aHR0cDovLzE3Mi4xNDAuMTIuMTU=
+  SHARE_POINT_PORT: NTAwMA==
+  BITRIX_URL: aHR0cHM6Ly9iaXRyaXguZXN1aGFpLm9yZy9yZXN0LzUwNS9nZ2xhemVnd2NvZHJ1aHIzLw==
+
+# stringData:
+#   HTTP_PORT: 8000
+#   HTTPS_PORT: 3000
+#   APP_IP: 0.0.0.0
+#   DB_CONNECTION: mysql
+#   DB_HOST_1: 172.140.12.10
+#   DB_PORT_1: 3306
+#   DB_DATABASE_1: kaizen
+#   DB_USERNAME_1: kaizen_api
+#   DB_PASSWORD_1: E;h).J1i(lO{(#,wj)r;
+#   SHARE_POINT_USER: apibitrix
+#   SHARE_POINT_PASSWORD: uXMIZYO4c199z@!Et0wK
+#   SHARE_POINT_IP: http://172.140.12.15
+#   SHARE_POINT_PORT: 5000
+#   BITRIX_URL: https://bitrix.esuhai.org/rest/505/gglazegwcodruhr3/
