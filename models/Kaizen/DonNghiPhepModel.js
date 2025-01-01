@@ -39,7 +39,6 @@ class DonNghiPhepModel extends Model {
             return value; 
         });
         const filteredData = await super.createMultiple(dataCreate)
-        console.log('DonNghiPhepModel', filteredData);
         return
         let sql = `
             INSERT INTO ${this.table} (${filteredData.columns})

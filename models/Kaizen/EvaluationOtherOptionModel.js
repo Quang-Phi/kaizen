@@ -1,17 +1,13 @@
 const { connection } = require("../../config/database");
 const { Model } = require("../Model");
 
-class DimDailyCheckinModel extends Model {
-  static table = "dim_daily_checkin";
+class EvaluationOtherOptionModel extends Model {
+  static table = "evaluation_other_option";
   static primaryKey = "id";
   static fillable = [
-    "id",
-    "id_daily_checkin",
-    "class_session",
-    "type_checkin_id",
-    "class_code",
-    "reason_id",
-    "comment",
+    "daily_checkin_evaluation_id",
+    "orther_id",
+    "text",
     "created_at",
     "updated_at",
   ];
@@ -19,26 +15,14 @@ class DimDailyCheckinModel extends Model {
   static async create(data) {
     const conn = await connection(1);
     await conn.promise().beginTransaction();
-
     try {
       const results = [];
       for (const item of data) {
-        try {
-          const [result] = await conn
-            .promise()
-            .query(`INSERT INTO ${this.table} SET ?`, item);
-
-          results.push({
-            id: result.insertId,
-            ...item,
-          });
-        } catch (sqlError) {
-          console.error("SQL Error:", sqlError);
-          await conn.promise().rollback();
-          throw sqlError;
-        }
+        const [result] = await conn
+          .promise()
+          .query(`INSERT INTO ${this.table} SET ?`, item);
+        results.push({ id: result.insertId, ...item });
       }
-
       await conn.promise().commit();
       return results;
     } catch (error) {
@@ -58,10 +42,9 @@ class DimDailyCheckinModel extends Model {
       for (const item of data) {
         const [existing] = await conn.promise().query(
           `SELECT id FROM ${this.table} 
-             WHERE id_daily_checkin = ? AND student_code = ? AND class_session = ?`,
-          [item.id_daily_checkin, item.student_code, item.class_session]
+             WHERE daily_checkin_evaluation_id = ? AND orther_id = ?`,
+          [item.daily_checkin_evaluation_id, item.orther_id]
         );
-
         if (existing && existing[0]) {
           const { id, created_at, ...updateData } = item;
           await conn
@@ -99,4 +82,4 @@ class DimDailyCheckinModel extends Model {
   }
 }
 
-module.exports = { DimDailyCheckinModel };
+module.exports = { EvaluationOtherOptionModel };

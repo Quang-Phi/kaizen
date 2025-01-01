@@ -1,4 +1,4 @@
-const { DiemDanhNhapHocModel } = require('../../models/Kaizen/DiemDanhNhapHocModel'); // Đảm bảo đường dẫn và cách xuất đúng
+const { DiemDanhNhapHocModel } = require('../../models/Kaizen/DiemDanhNhapHocModel');
 const { DiemDanhNhapHocValidator } = require('../../validator/Kaizen/DiemDanhNhapHocValidator');
 class DiemDanhNhapHocController {
     static async getList(req, res) {

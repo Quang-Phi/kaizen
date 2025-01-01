@@ -1,41 +1,38 @@
-const { Model } = require('../../models/Model');
-const { connection } = require('../../config/database');
-const { StudentModel } = require('./StudentModel');
-const { DealsModel } = require('./DealsModel');
-const { HocVienDealModel } = require('./HocVienDealModel');
-const moment = require('moment');
-const { v4: uuidv4 } = require('uuid');
+const { Model } = require("../../models/Model");
+const { connection } = require("../../config/database");
+const { StudentModel } = require("./StudentModel");
+const { DealsModel } = require("./DealsModel");
+const { HocVienDealModel } = require("./HocVienDealModel");
+const moment = require("moment");
+const { v4: uuidv4 } = require("uuid");
 
 class DiemDanhNhapHocModel extends Model {
+  static table = "enrollment_attendance";
 
-    static table = 'enrollment_attendance';
+  static primaryKey = "ma";
 
-    static primaryKey = 'ma';
+  static fillable = [
+    "ma_hv",
+    "id_contact",
+    "ma_deal",
+    "ngay_nhap_hoc",
+    "diem_danh",
+    "cap_nhat_gan_nhat",
+    "note",
+    "ngay_tao",
+    "ngay_sua",
+  ];
 
-    static fillable = [
-        'ma_hv',
-        'id_contact',
-        'ma_deal',
-        'ngay_nhap_hoc',
-        'diem_danh',
-        'cap_nhat_gan_nhat',
-        'note',
-        'ngay_tao',
-        'ngay_sua'
-    ]
+  constructor() {}
 
-    constructor() {
-        
-    }
+  static createPrimaryKey() {
+    return "DDNH" + uuidv4();
+  }
 
-    static createPrimaryKey() {
-        return 'DDNH' + uuidv4();
-    }
-    
-    static async getList(filter, page = 1, pageSize = 20) {
-        try {
-            const conn = await connection(1); // Get the database connection
-            let sql = `
+  static async getList(filter, page = 1, pageSize = 20) {
+    try {
+      const conn = await connection(1);
+      let sql = `
                 SELECT 
                     diem_danh_nhap_hoc.id,
                     diem_danh_nhap_hoc.id_deal,
@@ -64,38 +61,37 @@ class DiemDanhNhapHocModel extends Model {
                     diem_danh_nhap_hoc.note
                 FROM diem_danh_nhap_hoc
                 INNER JOIN hoc_vien ON hoc_vien.ma_hv = diem_danh_nhap_hoc.ma_hv
-                LEFT JOIN config ON config.id = diem_danh_nhap_hoc.diem_danh ` 
-            ;
+                LEFT JOIN config ON config.id = diem_danh_nhap_hoc.diem_danh `;
+      const where = [];
+      const bindings = [];
+      if (filter.ngay_nhap_hoc) {
+        where.push("diem_danh_nhap_hoc.ngay_nhap_hoc = ?");
+        bindings.push(filter.ngay_nhap_hoc);
+      }
 
-            const where = [];
-            const bindings = [];
-            if (filter.ngay_nhap_hoc) {
-                where.push('diem_danh_nhap_hoc.ngay_nhap_hoc = ?');
-                bindings.push(filter.ngay_nhap_hoc);
-            }
-            
-            if (filter.ten_hv) {
-                where.push(`hoc_vien.ten_hv LIKE '?%'`);
-                bindings.push(filter.ten_hv);
-            }
+      if (filter.ten_hv) {
+        where.push(`hoc_vien.ten_hv LIKE '?%'`);
+        bindings.push(filter.ten_hv);
+      }
 
-            if (filter.diem_danh) {
-                where.push(`diem_danh_nhap_hoc.diem_danh = ?`);
-                bindings.push(filter.diem_danh);
-            }
+      if (filter.diem_danh) {
+        where.push(`diem_danh_nhap_hoc.diem_danh = ?`);
+        bindings.push(filter.diem_danh);
+      }
 
-            if (where.length > 0) {
-                sql += ` WHERE ${where.join(' AND ')}`;
-            }
+      if (where.length > 0) {
+        sql += ` WHERE ${where.join(" AND ")}`;
+      }
 
-            const offset = (page - 1) * pageSize;
-            sql += ' LIMIT ? OFFSET ?';
-            bindings.push(pageSize, offset);
+      const offset = (page - 1) * pageSize;
+      sql += " LIMIT ? OFFSET ?";
+      bindings.push(pageSize, offset);
 
-            const [rows] = await conn.promise().execute(sql, bindings);
+      const [rows] = await conn.promise().execute(sql, bindings);
 
-            const rs = await Promise.all(rows.map(async (value) => {
-                sql = `
+      const rs = await Promise.all(
+        rows.map(async (value) => {
+          sql = `
                     SELECT 
                         lop_hoc.id,
                         lop_hoc.ma,
@@ -107,27 +103,26 @@ class DiemDanhNhapHocModel extends Model {
                     WHERE lop_hoc_hoc_vien.ma_hv = ?
                     ORDER BY lop_hoc_hoc_vien.id DESC
                 `;
-                
-                const [lop_hoc] = await conn.promise().execute(sql, [value.ma_hv])
-                // Gán dữ liệu mới vào đối tượng value
-                value.lop_hoc = lop_hoc; // Nếu muốn thêm kết quả vào từng phần tử `rows`
 
-                return value;
-            }));
+          const [lop_hoc] = await conn.promise().execute(sql, [value.ma_hv]);
+          value.lop_hoc = lop_hoc; // Nếu muốn thêm kết quả vào từng phần tử `rows`
 
-            return rs;
-        } catch (error) {
-            console.log('Error fetching config from database: ' + error.message);
-            throw error;
-        } finally {
-            await conn.end();
-        }
+          return value;
+        })
+      );
+
+      return rs;
+    } catch (error) {
+      console.log("Error fetching config from database: " + error.message);
+      throw error;
+    } finally {
+      await conn.end();
     }
+  }
 
-    static async getCountList(filter) {
-        
-        const conn = await connection(1); // Get the database connection
-        let sql = `
+  static async getCountList(filter) {
+    const conn = await connection(1);
+    let sql = `
             SELECT 
                 diem_danh_nhap_hoc.id,
                 diem_danh_nhap_hoc.id_deal,
@@ -156,78 +151,64 @@ class DiemDanhNhapHocModel extends Model {
                 diem_danh_nhap_hoc.note
             FROM diem_danh_nhap_hoc as diem_danh_nhap_hoc
             INNER JOIN hoc_vien ON hoc_vien.ma_hv = diem_danh_nhap_hoc.ma_hv
-            LEFT JOIN config ON config.id = diem_danh_nhap_hoc.diem_danh ` 
-        ;
-
-        const where = [];
-        const bindings = [];
-        if (filter.ngay_nhap_hoc) {
-            where.push('diem_danh_nhap_hoc.ngay_nhap_hoc = ?');
-            bindings.push(filter.ngay_nhap_hoc);
-        }
-        
-        if (filter.ten_hv) {
-            where.push(`hoc_vien.ten_hv LIKE '?%'`);
-            bindings.push(filter.ten_hv);
-        }
-
-        if (filter.diem_danh) {
-            where.push(`diem_danh_nhap_hoc.diem_danh = ?`);
-            bindings.push(filter.diem_danh);
-        }
-
-        if (where.length > 0) {
-            sql += ` WHERE ${where.join(' AND ')}`;
-        }
-
-        const totalSql = `SELECT COUNT(*) as CNT FROM (${sql}) as count_table`;
-        const [totalResult] = await conn.promise().execute(totalSql, bindings);
-        const totalRecords = totalResult[0].CNT;
-
-        await conn.end();
-
-        return totalRecords;
+            LEFT JOIN config ON config.id = diem_danh_nhap_hoc.diem_danh `;
+    const where = [];
+    const bindings = [];
+    if (filter.ngay_nhap_hoc) {
+      where.push("diem_danh_nhap_hoc.ngay_nhap_hoc = ?");
+      bindings.push(filter.ngay_nhap_hoc);
     }
 
-    static async createMultiple(data) {
-
-        // Tạo học viên theo
-        let student_code = await StudentModel.createMultiple(data);
-        // let filter = {...data};
-        // filter.ma_hv = ma_hv
-        await Promise.all(student_code.map(async (student) => {
-            // const isExist = await this.isExists({ ma_hv: hv.ma_hv });
-            const result = data.find(({ student_code }) => student_code === student.student_code);
-            // Tạo deals
-            let deal_code = await DealsModel.create(result);
-                
-            result.deal_code = deal_code;
-            // Bản liên kết khóa ngoại
-            HocVienDealModel.create(result);
-
-            // Tạo điểm danh
-            this.createDiemDanh(result);
-            // if (!isExist) {
-            //     let ma_deal = await DealsModel.create(result);
-                
-            //     result.ma_deal = ma_deal;
-            //     HocVienDealModel.create(result);
-            //     await this.createDiemDanh(result);
-            // } else {
-            //     await this.updated(result, { ma_hv: hv.ma_hv });
-            // }
-        }));
-        
+    if (filter.ten_hv) {
+      where.push(`hoc_vien.ten_hv LIKE '?%'`);
+      bindings.push(filter.ten_hv);
     }
 
-    static async createDiemDanh(data) {
+    if (filter.diem_danh) {
+      where.push(`diem_danh_nhap_hoc.diem_danh = ?`);
+      bindings.push(filter.diem_danh);
+    }
 
-        data[this.primaryKey] = this.createPrimaryKey()
-        data.ngay_tao = moment().format('YYYY-MM-DD HH:mm:ss');
-        data.ngay_sua = moment().format('YYYY-MM-DD HH:mm:ss');
-        const filteredData = await super.create(data)
+    if (where.length > 0) {
+      sql += ` WHERE ${where.join(" AND ")}`;
+    }
 
-        let sql = `
+    const totalSql = `SELECT COUNT(*) as CNT FROM (${sql}) as count_table`;
+    const [totalResult] = await conn.promise().execute(totalSql, bindings);
+    const totalRecords = totalResult[0].CNT;
+
+    await conn.end();
+
+    return totalRecords;
+  }
+
+  static async createMultiple(data) {
+    let student_code = await StudentModel.createMultiple(data);
+
+    await Promise.all(
+      student_code.map(async (student) => {
+        const result = data.find(
+          ({ student_code }) => student_code === student.student_code
+        );
+        let deal_code = await DealsModel.create(result);
+
+        result.deal_code = deal_code;
+        // Bản liên kết khóa ngoại
+        HocVienDealModel.create(result);
+
+        // Tạo điểm danh
+        this.createDiemDanh(result);
+      })
+    );
+  }
+
+  static async createDiemDanh(data) {
+    data[this.primaryKey] = this.createPrimaryKey();
+    data.ngay_tao = moment().format("YYYY-MM-DD HH:mm:ss");
+    data.ngay_sua = moment().format("YYYY-MM-DD HH:mm:ss");
+    const filteredData = await super.create(data);
+
+    let sql = `
             INSERT INTO ${this.table} (${filteredData.columns})
             VALUES ${filteredData.placeholders}
             ON DUPLICATE KEY UPDATE 
@@ -237,91 +218,87 @@ class DiemDanhNhapHocModel extends Model {
                 updated_at = VALUES(updated_at)
         `;
 
-        // Chèn dữ liệu vào cơ sở dữ liệu
-        const conn = await connection(1);
-        try {
-            const [result] = await conn.promise().execute(sql, filteredData.values);
+    const conn = await connection(1);
+    try {
+      const [result] = await conn.promise().execute(sql, filteredData.values);
 
-            return result.affectedRows
-        } catch (error) {
-            console.error('Error inserting data:', error);
-            throw error;
-        } finally {
-            await conn.end();
-        }
+      return result.affectedRows;
+    } catch (error) {
+      console.error("Error inserting data:", error);
+      throw error;
+    } finally {
+      await conn.end();
     }
+  }
 
-    static async isExists(filter) {
-
-        const conn = await connection(1);
-        let sql = `
+  static async isExists(filter) {
+    const conn = await connection(1);
+    let sql = `
             SELECT COUNT(*) as total FROM ${this.table} 
         `;
 
-        const where = [];
-        const bindings = [];
-        if (filter.ma_hv) {
-            where.push(`${this.table}.ma_hv = ?`);
-            bindings.push(filter.ma_hv);
-        }
-        
-        if (filter.id_contact) {
-            where.push(`${this.table}.id_contact = ?`);
-            bindings.push(filter.id_contact);
-        }
-
-        if (filter.id_deal) {
-            where.push(`${this.table}.id_deal = ?`);
-            bindings.push(filter.id_deal);
-        }
-
-        if (filter.ma_deal) {
-            where.push(`${this.table}.ma_deal = ?`);
-            bindings.push(filter.ma_deal);
-        }
-
-        if (where.length > 0) {
-            sql += ` WHERE ${where.join(' AND ')}`;
-        }
-
-        sql += " LIMIT 1";
-
-        const [[{ total }], fields] = await conn.promise().query(sql, bindings);
-        
-        await conn.end();
-
-        if (total > 0) {
-            return true;
-        }
-
-        return false;
+    const where = [];
+    const bindings = [];
+    if (filter.ma_hv) {
+      where.push(`${this.table}.ma_hv = ?`);
+      bindings.push(filter.ma_hv);
     }
 
-    static async updated(data, where = []) {
+    if (filter.id_contact) {
+      where.push(`${this.table}.id_contact = ?`);
+      bindings.push(filter.id_contact);
+    }
 
-        const dataUpdate = {...data}
-        dataUpdate.ngay_sua = moment().format('YYYY-MM-DD HH:mm:ss');
-        const filteredData = await super.updated(dataUpdate, where)
+    if (filter.id_deal) {
+      where.push(`${this.table}.id_deal = ?`);
+      bindings.push(filter.id_deal);
+    }
 
-        let sql = `
+    if (filter.ma_deal) {
+      where.push(`${this.table}.ma_deal = ?`);
+      bindings.push(filter.ma_deal);
+    }
+
+    if (where.length > 0) {
+      sql += ` WHERE ${where.join(" AND ")}`;
+    }
+
+    sql += " LIMIT 1";
+
+    const [[{ total }], fields] = await conn.promise().query(sql, bindings);
+
+    await conn.end();
+
+    if (total > 0) {
+      return true;
+    }
+
+    return false;
+  }
+
+  static async updated(data, where = []) {
+    const dataUpdate = { ...data };
+    dataUpdate.ngay_sua = moment().format("YYYY-MM-DD HH:mm:ss");
+    const filteredData = await super.updated(dataUpdate, where);
+
+    let sql = `
             UPDATE ${this.table}
             SET ${filteredData.placeholders}
-            ${filteredData.wheres ? 'WHERE ' + filteredData.wheres : ''}
+            ${filteredData.wheres ? "WHERE " + filteredData.wheres : ""}
         `;
 
-        const conn = await connection(1);
-        try {
-            await conn.promise().execute(sql, filteredData.values);
+    const conn = await connection(1);
+    try {
+      await conn.promise().execute(sql, filteredData.values);
 
-            return true;
-        } catch (error) {
-            console.error('Error executing query:', error);
-            throw error;
-        } finally {
-            // Đóng kết nối sau khi sử dụng
-            await conn.end(); 
-        }
+      return true;
+    } catch (error) {
+      console.error("Error executing query:", error);
+      throw error;
+    } finally {
+      await conn.end();
     }
+  }
 }
 
 module.exports = { DiemDanhNhapHocModel };

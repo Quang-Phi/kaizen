@@ -1,17 +1,30 @@
 const { connection } = require("../../config/database");
 const { Model } = require("../Model");
 
-class DimDailyCheckinModel extends Model {
-  static table = "dim_daily_checkin";
-  static primaryKey = "id";
+class DimDailyEvaluationModel extends Model {
+  static table = "dim_daily_evaluation";
+  static primaryKey = "id_daily_checkin";
   static fillable = [
-    "id",
     "id_daily_checkin",
-    "class_session",
-    "type_checkin_id",
-    "class_code",
-    "reason_id",
-    "comment",
+    "student_code",
+    "attendance",
+    "learning_attitude",
+    "physical_appearance",
+    "consciousness_personality",
+    "japanese_learning_ability",
+    "mental_health",
+    "age",
+    "disability",
+    "desired_major",
+    "family_influence",
+    "physical_condition",
+    "tatoo",
+    "japanese_language_need",
+    "expected_graduation_year",
+    "medical_history",
+    "is_registered_elsewhere",
+    "military_requirement",
+    "note",
     "created_at",
     "updated_at",
   ];
@@ -23,14 +36,15 @@ class DimDailyCheckinModel extends Model {
     try {
       const results = [];
       for (const item of data) {
+        let { japanese_language_need_orther, family_influence_orther, ...evaluationData } = item;
         try {
           const [result] = await conn
             .promise()
-            .query(`INSERT INTO ${this.table} SET ?`, item);
+            .query(`INSERT INTO ${this.table} SET ?`, evaluationData);
 
           results.push({
-            id: result.insertId,
-            ...item,
+            id_daily_checkin: result.insertId,
+            ...evaluationData,
           });
         } catch (sqlError) {
           console.error("SQL Error:", sqlError);
@@ -99,4 +113,4 @@ class DimDailyCheckinModel extends Model {
   }
 }
 
-module.exports = { DimDailyCheckinModel };
+module.exports = { DimDailyEvaluationModel };

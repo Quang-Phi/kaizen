@@ -1,49 +1,42 @@
-const { Model } = require('../Model');
-const { DimContactModel } = require('./DimContactModel');
-const { runWorkerV2 } = require('../../workers/runWorker');
-const { connection } = require('../../config/database');
-const { v4: uuidv4 } = require('uuid');
-const moment = require('moment');
-const { EventLogModel } = require('./EventLogModel');
-const { RegisterClassModel } = require('./RegisterClassModel');
+const { Model } = require("../Model");
+const { DimContactModel } = require("./DimContactModel");
+const { runWorkerV2 } = require("../../workers/runWorker");
+const { connection } = require("../../config/database");
+const { v4: uuidv4 } = require("uuid");
+const moment = require("moment");
+const { EventLogModel } = require("./EventLogModel");
 
 class StudentModel extends Model {
+  static table = "student";
 
-    static table = 'student';
+  static primaryKey = "code";
 
-    static primaryKey = 'code';
+  static fillable = [
+    "name",
+    "first_name",
+    "last_name",
+    "contact_id",
+    "schools_id",
+    "dob",
+    "gender",
+    "date_graduation",
+    "native_place",
+    "note",
+    "status",
+    "level",
+    "created_by",
+    "updated_by",
+    "created_at",
+    "updated_at",
+  ];
 
-    static fillable = [
-        'name',
-        'first_name',
-        'last_name',
-        'contact_id',
-        'schools_id',
-        'dob',
-        'gender',
-        'date_graduation',
-        'native_place',
-        'note',
-        'status',
-        'level',
-        'created_by',
-        'updated_by',
-        'created_at',
-        'updated_at'
-    ]
 
-    constructor() {
+  static async createPrimaryKey(data) {
+    const year = moment().format("YY");
+    const full_year = moment().format("YYYY");
+    const month = moment().format("MM");
 
-    }
-
-    static async createPrimaryKey(data) 
-    {
-        const year = moment().format('YY');
-        const full_year = moment().format('YYYY');
-        const month = moment().format('MM');
-
-        // Không được tính theo deal active vì sẽ có thể xảy ra 2 contact khác mà trùng mã
-        let sql = `
+    let sql = `
             SELECT 
                 COUNT(student_deal.student_id) AS total
             FROM deals
@@ -53,36 +46,32 @@ class StudentModel extends Model {
             WHERE deals.created_at BETWEEN '${full_year}-01-01' AND '${full_year}-12-31'
         `;
 
-        const conn = await connection(1);
-        try {
-            const [[result]] = await conn.promise().execute(sql);
-            let total = result.total + 1;
+    const conn = await connection(1);
+    try {
+      const [[result]] = await conn.promise().execute(sql);
+      let total = result.total + 1;
 
-            if (full_year == 2024) {
-                total = total + 806;
-            }
+      if (full_year == 2024) {
+        total = total + 806;
+      }
 
-            if (total.toString().length > 4) {
-                return `DB${data.branch_code}${year}${month}${total}`;
-            } 
+      if (total.toString().length > 4) {
+        return `DB${data.branch_code}${year}${month}${total}`;
+      }
 
-            var str = new Array((4 - total.toString().length) + 1).join( '0' );
-            str = `${str}${total}`.trim();
-            return `DB${data.branch_code}${year}${month}${str}`;
-        } catch (error) {
-            console.error('Error executing query:', error);
-            throw error;
-        } finally {
-            // Đóng kết nối sau khi sử dụng
-            await conn.end();
-        }
-        
+      var str = new Array(4 - total.toString().length + 1).join("0");
+      str = `${str}${total}`.trim();
+      return `DB${data.branch_code}${year}${month}${str}`;
+    } catch (error) {
+      console.error("Error executing query:", error);
+      throw error;
+    } finally {
+      await conn.end();
     }
+  }
 
-    // Lấy học viên đã xếp lớp
-    static async getHocVienByClass(filter, page = 1, pageSize = 100)
-    {
-        let sql = `
+  static async getStudentByClass(filter, page = 1, pageSize = 100) {
+    let sql = `
             SELECT 
                 rcs.register_class_code,
                 t.id as id, 
@@ -114,95 +103,96 @@ class StudentModel extends Model {
             LEFT JOIN area ON  area.code = branches.area_code 
         `;
 
-        let where = [];
-        let bindings = [];
-        
-        where.push('rcs.status = ?');
-        bindings.push('Actived');
+    let where = [];
+    let bindings = [];
 
-        where.push('rcs.student_code IS NOT NULL');
-        
-        if (filter.class_code) {
-            where.push('classes.code = ?');
-            bindings.push(filter.class_code);
-        }
+    where.push("rcs.status = ?");
+    bindings.push("Actived");
 
-        if (filter.search) {
-            const full_name = filter.search;
-            const match = full_name.match(/\S+(?=\s*$)/);
+    where.push("rcs.student_code IS NOT NULL");
 
-            if (match) {
-                const last_name = match[0]; // Lấy từ cuối cùng làm last_name
-                const first_name = full_name.replace(/\s*\S+\s*$/, '').trim(); // Phần còn lại làm first_name
-
-                console.log("First Name:", last_name);
-                console.log("Last Name:", first_name);
-                const whereFullName = [];
-                const bindingsFullName = [];
-                if (first_name) {
-                    const escaped_first_name = first_name.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'); // Escape special characters
-                    whereFullName.push(`t.first_name REGEXP ? OR t.last_name REGEXP ?`)
-                    bindingsFullName.push(escaped_first_name);
-                    bindingsFullName.push(escaped_first_name);
-                }
-
-                if (last_name) {
-                    const escaped_last_name = last_name.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'); // Escape special characters
-                    whereFullName.push(`t.first_name REGEXP ? OR t.last_name REGEXP ?`)
-                    bindingsFullName.push(escaped_last_name);
-                    bindingsFullName.push(escaped_last_name);
-                }
-
-                const escaped_code = filter.search.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'); // Escape special characters
-                bindings.push(escaped_code);
-
-                where.push(`(t.code REGEXP ? OR ${whereFullName.join(' OR ')})`);
-                bindings = [...bindings, ...bindingsFullName];
-            } else {
-                const escaped_code = filter.search.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'); // Escape special characters
-                where.push('(t.code REGEXP ? OR )');
-                bindings.push(escaped_code);
-            }
-        }
-        
-        // if (filter.diem_danh) {
-        //     const placeholders = Array.isArray(filter.diem_danh) ? filter.diem_danh.map(() => '?').join(',') : '?';
-        //     console.log(placeholders)
-        //     where.push(`diem_danh_nhap_hoc.diem_danh IN (${placeholders})`);
-        //     bindings.push(...(Array.isArray(filter.diem_danh) ? filter.diem_danh : [filter.diem_danh]));
-        // }
-
-        if (where.length > 0) {
-            sql += ` WHERE ${where.join(' AND ')}`;
-        }
-
-        const offset = (page - 1) * pageSize;
-        const totalSql = `SELECT COUNT(*) as CNT FROM (${sql}) as count_table`;
-        sql += ` LIMIT ${pageSize} OFFSET ${offset}`;
-        
-        const conn = await connection(1); // Get the database connection
-        try {
-            const [[totalResult], [rows]] = await Promise.all([
-                conn.promise().execute(totalSql, bindings),
-                conn.promise().execute(sql, bindings)
-            ]);
-
-            return {
-                total: totalResult[0].CNT,
-                data: rows ?? {}
-            };
-        } catch (error) {
-            console.log('Error fetching config from database: ' + error.message);
-            throw error;
-        } finally {
-            // Đóng kết nối sau khi sử dụng
-            await conn.end();
-        }
+    if (filter.class_code) {
+      where.push("classes.code = ?");
+      bindings.push(filter.class_code);
     }
 
-    static async getKhaiGiang(filter, page = 1, pageSize = 20) {
+    if (filter.search) {
+      const full_name = filter.search;
+      const match = full_name.match(/\S+(?=\s*$)/);
 
-        let sql = `
+      if (match) {
+        const last_name = match[0]; // Lấy từ cuối cùng làm last_name
+        const first_name = full_name.replace(/\s*\S+\s*$/, "").trim(); // Phần còn lại làm first_name
+
+        const whereFullName = [];
+        const bindingsFullName = [];
+        if (first_name) {
+          const escaped_first_name = first_name.replace(
+            /[.*+?^${}()|[\]\\]/g,
+            "\\$&"
+          ); // Escape special characters
+          whereFullName.push(`t.first_name REGEXP ? OR t.last_name REGEXP ?`);
+          bindingsFullName.push(escaped_first_name);
+          bindingsFullName.push(escaped_first_name);
+        }
+
+        if (last_name) {
+          const escaped_last_name = last_name.replace(
+            /[.*+?^${}()|[\]\\]/g,
+            "\\$&"
+          ); // Escape special characters
+          whereFullName.push(`t.first_name REGEXP ? OR t.last_name REGEXP ?`);
+          bindingsFullName.push(escaped_last_name);
+          bindingsFullName.push(escaped_last_name);
+        }
+
+        const escaped_code = filter.search.replace(
+          /[.*+?^${}()|[\]\\]/g,
+          "\\$&"
+        ); // Escape special characters
+        bindings.push(escaped_code);
+
+        where.push(`(t.code REGEXP ? OR ${whereFullName.join(" OR ")})`);
+        bindings = [...bindings, ...bindingsFullName];
+      } else {
+        const escaped_code = filter.search.replace(
+          /[.*+?^${}()|[\]\\]/g,
+          "\\$&"
+        ); // Escape special characters
+        where.push("(t.code REGEXP ? OR )");
+        bindings.push(escaped_code);
+      }
+    }
+
+    if (where.length > 0) {
+      sql += ` WHERE ${where.join(" AND ")}`;
+    }
+
+    const offset = (page - 1) * pageSize;
+    const totalSql = `SELECT COUNT(*) as CNT FROM (${sql}) as count_table`;
+    sql += ` LIMIT ${pageSize} OFFSET ${offset}`;
+
+    const conn = await connection(1);
+    try {
+      const [[totalResult], [rows]] = await Promise.all([
+        conn.promise().execute(totalSql, bindings),
+        conn.promise().execute(sql, bindings),
+      ]);
+
+      return {
+        total: totalResult[0].CNT,
+        data: rows ?? {},
+      };
+    } catch (error) {
+      console.log("Error fetching config from database: " + error.message);
+      throw error;
+    } finally {
+      await conn.end();
+    }
+  }
+
+  static async getKhaiGiang(filter, page = 1, pageSize = 20) {
+    let sql = `
             SELECT 
                 hoc_vien.id as id_hv, hoc_vien.ma_hv as ma_hv, hoc_vien.ten_hv, hoc_vien.id_contact, deals.id_deal as id_deal, deals.ma_deal, deals.ngay_khai_giang as ngay_khai_giang, chi_nhanh.ten_chi_nhanh as deal_chi_nhanh
             FROM ${this.table}
@@ -211,29 +201,27 @@ class StudentModel extends Model {
             INNER JOIN chi_nhanh ON chi_nhanh.ma = deals.ma_chi_nhanh
         `;
 
-        let filteredWhere = await this.where(filter);
+    let filteredWhere = await this.where(filter);
 
-        if (filteredWhere.wheres) {
-            sql += ` WHERE ${filteredWhere.wheres}`;
-        } 
-
-        const conn = await connection(1);
-        try {
-            const [result] = await conn.promise().execute(sql, filteredWhere.values);
-
-            return result;
-        } catch (error) {
-            console.error('Error executing query:', error);
-            throw error;
-        } finally {
-            // Đóng kết nối sau khi sử dụng
-            await conn.end();
-        }
+    if (filteredWhere.wheres) {
+      sql += ` WHERE ${filteredWhere.wheres}`;
     }
 
-    static async getCountKhaiGiang(filter) {
+    const conn = await connection(1);
+    try {
+      const [result] = await conn.promise().execute(sql, filteredWhere.values);
 
-        let sql = `
+      return result;
+    } catch (error) {
+      console.error("Error executing query:", error);
+      throw error;
+    } finally {
+      await conn.end();
+    }
+  }
+
+  static async getCountKhaiGiang(filter) {
+    let sql = `
             SELECT 
                 hoc_vien.id as id_hv, hoc_vien.ma_hv as ma_hv, hoc_vien.ten_hv, hoc_vien.id_contact, deals.id_deal as id_deal, deals.ma_deal, deals.ngay_khai_giang as ngay_khai_giang, chi_nhanh.ten_chi_nhanh as deal_chi_nhanh
             FROM ${this.table}
@@ -242,41 +230,37 @@ class StudentModel extends Model {
             INNER JOIN chi_nhanh ON chi_nhanh.ma = deals.ma_chi_nhanh
         `;
 
-        let filteredWhere = await this.where(filter);
+    let filteredWhere = await this.where(filter);
 
-        if (filteredWhere.wheres) {
-            sql += ` WHERE ${filteredWhere.wheres}`;
-        } 
-
-        const conn = await connection(1);
-        try {
-            
-            const totalSql = `SELECT COUNT(*) as CNT FROM (${sql}) as count_table`;
-            const [totalResult] = await conn.promise().execute(totalSql, filteredWhere.values);
-            const totalRecords = totalResult[0].CNT;
-
-            return totalRecords;
-        } catch (error) {
-            console.error('Error executing query:', error);
-            throw error;
-        } finally {
-            // Đóng kết nối sau khi sử dụng
-            await conn.end();
-        }
-
-        
+    if (filteredWhere.wheres) {
+      sql += ` WHERE ${filteredWhere.wheres}`;
     }
-    
-    static async create(data) 
-    {
-        // data.code = this.createPrimaryKey();
-        data.code = data.code;
-        data.created_at = moment().format('YYYY-MM-DD HH:mm:ss');
-        data.updated_at = moment().format('YYYY-MM-DD HH:mm:ss');
 
-        const filteredData = await super.create(data)
-        console.log(data);
-        let sql = `
+    const conn = await connection(1);
+    try {
+      const totalSql = `SELECT COUNT(*) as CNT FROM (${sql}) as count_table`;
+      const [totalResult] = await conn
+        .promise()
+        .execute(totalSql, filteredWhere.values);
+      const totalRecords = totalResult[0].CNT;
+
+      return totalRecords;
+    } catch (error) {
+      console.error("Error executing query:", error);
+      throw error;
+    } finally {
+      await conn.end();
+    }
+  }
+
+  static async create(data) {
+    data.code = data.code;
+    data.created_at = moment().format("YYYY-MM-DD HH:mm:ss");
+    data.updated_at = moment().format("YYYY-MM-DD HH:mm:ss");
+
+    const filteredData = await super.create(data);
+
+    let sql = `
             INSERT INTO ${this.table} (${filteredData.columns})
             VALUES 
                 ${filteredData.placeholders}
@@ -290,178 +274,182 @@ class StudentModel extends Model {
                 updated_at = VALUES(updated_at);
         `;
 
-        const conn = await connection(1);
-        try {
-            const [result, fields] = await conn.promise().execute(sql, filteredData.values);
-            const [[student]] = await conn.promise().query(`SELECT id, contact_id, ${this.primaryKey} FROM ${this.table} WHERE id = ${result.insertId} LIMIT 1`);
-            
-            return student;
-        } catch (error) {
-            console.error('Error executing query:', error);
-            throw error;
-        } finally {
-            // Đóng kết nối sau khi sử dụng
-            await conn.end();
-        }
+    const conn = await connection(1);
+    try {
+      const [result, fields] = await conn
+        .promise()
+        .execute(sql, filteredData.values);
+      const [[student]] = await conn
+        .promise()
+        .query(
+          `SELECT id, contact_id, ${this.primaryKey} FROM ${this.table} WHERE id = ${result.insertId} LIMIT 1`
+        );
+
+      return student;
+    } catch (error) {
+      console.error("Error executing query:", error);
+      throw error;
+    } finally {
+      await conn.end();
     }
+  }
 
-    static async update(data, where = [])
-    {
-        const dataUpdate = {...data}
-        dataUpdate.updated_at = moment().format('YYYY-MM-DD HH:mm:ss');
-        const filteredData = await super.updated(dataUpdate, where)
+  static async update(data, where = []) {
+    const dataUpdate = { ...data };
+    dataUpdate.updated_at = moment().format("YYYY-MM-DD HH:mm:ss");
+    const filteredData = await super.updated(dataUpdate, where);
 
-        let sql = `
+    let sql = `
             UPDATE ${this.table}
             SET ${filteredData.placeholders}, id = (SELECT @id := id)
-            ${filteredData.wheres ? 'WHERE ' + filteredData.wheres : ''}
+            ${filteredData.wheres ? "WHERE " + filteredData.wheres : ""}
         `;
 
-        const conn = await connection(1);
-        try {
-            await conn.promise().execute('SET @id := 0;');
-            await conn.promise().execute(sql, filteredData.values);
-            const [[{['@id']:id}]] = await conn.promise().execute('SELECT @id;');
+    const conn = await connection(1);
+    try {
+      await conn.promise().execute("SET @id := 0;");
+      await conn.promise().execute(sql, filteredData.values);
+      const [[{ ["@id"]: id }]] = await conn.promise().execute("SELECT @id;");
 
-            const [[result]] = await conn.promise().query(`SELECT id, contact_id, ${this.primaryKey} FROM ${this.table} WHERE id = ${id} LIMIT 1`);
-            console.log(result, 'update update update update')
-            return result;
-        } catch (error) {
-            console.error('Error executing query:', error);
-            return false;
-        } finally {
-            // Đóng kết nối sau khi sử dụng
-            await conn.end(); 
-        }
+      const [[result]] = await conn
+        .promise()
+        .query(
+          `SELECT id, contact_id, ${this.primaryKey} FROM ${this.table} WHERE id = ${id} LIMIT 1`
+        );
+      return result;
+    } catch (error) {
+      console.error("Error executing query:", error);
+      return false;
+    } finally {
+      await conn.end();
     }
+  }
 
-    static async createStudent(data)
-    {
-        console.log('createStudent')
-        console.log(data)
-        const conn = await connection(1);
-        try {
-            await conn.promise().beginTransaction();
+  static async createStudent(data) {
+    const conn = await connection(1);
+    try {
+      await conn.promise().beginTransaction();
 
-            const student = await this.create({
-                first_name: data.first_name,
-                last_name: data.last_name,
-                contact_id: data.contact_id,
-                dob: data.dob,
-                gender: data.gender,
-                native_place: data.native_place,
-                created_by: data.created_by,
-                updated_by: data.updated_by,
-                code: data.code
-            });
-            console.log('createStudent student')
-            console.log(student)
-            const phone_num = data.phone_num.map(phone => {
-                runWorkerV2('Kaizen/DimContactWorker.js', {
-                    type: 'create', 
-                    data: {
-                        student_id: student.id,
-                        type_value: DimContactModel.type_value[0], type_person: DimContactModel.type_person[0], value: phone
-                    }
-                });
-            });
+      const student = await this.create({
+        first_name: data.first_name,
+        last_name: data.last_name,
+        contact_id: data.contact_id,
+        dob: data.dob,
+        gender: data.gender,
+        native_place: data.native_place,
+        created_by: data.created_by,
+        updated_by: data.updated_by,
+        code: data.code,
+      });
 
-            const email = data.email.map(email => {
-                runWorkerV2('Kaizen/DimContactWorker.js', {
-                    type: 'create', 
-                    data: {
-                        student_id: student.id,
-                        type_value: DimContactModel.type_value[1], type_person: DimContactModel.type_person[0], value: email
-                    }
-                });
-            });
-
-            await Promise.all([...phone_num, ...email]);
-
-            await conn.promise().commit();
-
-            console.log('Inserted student, phones, and emails successfully.');
-            return student;
-        } catch (error) {
-            // Rollback nếu có lỗi xảy ra
-            await conn.promise().rollback();
-            console.error('Error during insert:', error);
-
-            return false;
-        } finally {
-            await conn.promise().end();
-        }
-    }
-
-    static async updateStudent(data)
-    {    
-        const conn = await connection(1);
-        try {
-            await conn.promise().beginTransaction();
-
-            const updateFields = {};
-            for (const key in data) {
-                if (key == 'contact_id') {
-                    continue;
-                }
-
-                if (data[key] !== undefined && data[key] !== null) {
-                    updateFields[key] = data[key];
-                }
-            }
-
-            const student = await this.update(updateFields, {
-                contact_id: data.contact_id
-            });
-            console.log('updateStudent')
-            console.log(student)
-            const phone_num = data.phone_num.map(phone => {
-                runWorkerV2('Kaizen/DimContactWorker.js', {
-                    type: 'create', data: {
-                        student_id: student.id,
-                        type_value: DimContactModel.type_value[0], type_person: DimContactModel.type_person[0], value: phone
-                    }
-                });
-            });
-
-            const email = data.email.map(email => {
-                runWorkerV2('Kaizen/DimContactWorker.js', {
-                    type: 'create', 
-                    data: {
-                        student_id: student.id,
-                        type_value: DimContactModel.type_value[1], type_person: DimContactModel.type_person[0], value: email
-                    }
-                });
-            });
-
-            await Promise.all([...phone_num, ...email]);
-
-            await conn.promise().commit();
-
-            console.log('Inserted student, phones, and emails successfully.');
-            return student;
-        } catch (error) {
-            // Rollback nếu có lỗi xảy ra
-            await conn.promise().rollback();
-            console.error('Error during insert:', error);
-
-            return false;
-        } finally {
-            await conn.promise().end();
-        }
-    }
-
-    static async createMultiple(data) 
-    {
-        const arr = [].concat(data);
-        const dataCreate = arr.map((value) => {
-            value.code = this.createPrimaryKey();
-            value.created_at = moment().format('YYYY-MM-DD HH:mm:ss');
-            value.updated_at = moment().format('YYYY-MM-DD HH:mm:ss');
-            return value; 
+      const phone_num = data.phone_num.map((phone) => {
+        runWorkerV2("Kaizen/DimContactWorker.js", {
+          type: "create",
+          data: {
+            student_id: student.id,
+            type_value: DimContactModel.type_value[0],
+            type_person: DimContactModel.type_person[0],
+            value: phone,
+          },
         });
-        const filteredData = await super.createMultiple(dataCreate)
-        let sql = `
+      });
+
+      const email = data.email.map((email) => {
+        runWorkerV2("Kaizen/DimContactWorker.js", {
+          type: "create",
+          data: {
+            student_id: student.id,
+            type_value: DimContactModel.type_value[1],
+            type_person: DimContactModel.type_person[0],
+            value: email,
+          },
+        });
+      });
+
+      await Promise.all([...phone_num, ...email]);
+
+      await conn.promise().commit();
+
+      return student;
+    } catch (error) {
+      await conn.promise().rollback();
+      console.error("Error during insert:", error);
+
+      return false;
+    } finally {
+      await conn.promise().end();
+    }
+  }
+
+  static async updateStudent(data) {
+    const conn = await connection(1);
+    try {
+      await conn.promise().beginTransaction();
+
+      const updateFields = {};
+      for (const key in data) {
+        if (key == "contact_id") {
+          continue;
+        }
+
+        if (data[key] !== undefined && data[key] !== null) {
+          updateFields[key] = data[key];
+        }
+      }
+
+      const student = await this.update(updateFields, {
+        contact_id: data.contact_id,
+      });
+
+      const phone_num = data.phone_num.map((phone) => {
+        runWorkerV2("Kaizen/DimContactWorker.js", {
+          type: "create",
+          data: {
+            student_id: student.id,
+            type_value: DimContactModel.type_value[0],
+            type_person: DimContactModel.type_person[0],
+            value: phone,
+          },
+        });
+      });
+
+      const email = data.email.map((email) => {
+        runWorkerV2("Kaizen/DimContactWorker.js", {
+          type: "create",
+          data: {
+            student_id: student.id,
+            type_value: DimContactModel.type_value[1],
+            type_person: DimContactModel.type_person[0],
+            value: email,
+          },
+        });
+      });
+
+      await Promise.all([...phone_num, ...email]);
+
+      await conn.promise().commit();
+
+      return student;
+    } catch (error) {
+      await conn.promise().rollback();
+      console.error("Error during insert:", error);
+
+      return false;
+    } finally {
+      await conn.promise().end();
+    }
+  }
+
+  static async createMultiple(data) {
+    const arr = [].concat(data);
+    const dataCreate = arr.map((value) => {
+      value.code = this.createPrimaryKey();
+      value.created_at = moment().format("YYYY-MM-DD HH:mm:ss");
+      value.updated_at = moment().format("YYYY-MM-DD HH:mm:ss");
+      return value;
+    });
+    const filteredData = await super.createMultiple(dataCreate);
+    let sql = `
             INSERT INTO ${this.table} (${filteredData.columns})
             VALUES 
                 ${filteredData.placeholders}
@@ -474,106 +462,120 @@ class StudentModel extends Model {
             RETURNING ${filteredData.columns}
         `;
 
-        const conn = await connection(1);
+    const conn = await connection(1);
 
-        try {
-            const [result] = await conn.promise().execute(sql, filteredData.values);
-            return result.map((v, k) => {
-                if (v.ma_hv !== data[k].ma_hv) {
-                    data[k].ma_hv = v.ma_hv
-                }
-                return v;
-            });
-        } catch (error) {
-            console.error('Error executing query:', error);
-            throw error;
-        } finally {
-            // Đóng kết nối sau khi sử dụng
-            await conn.end();
+    try {
+      const [result] = await conn.promise().execute(sql, filteredData.values);
+      return result.map((v, k) => {
+        if (v.ma_hv !== data[k].ma_hv) {
+          data[k].ma_hv = v.ma_hv;
         }
+        return v;
+      });
+    } catch (error) {
+      console.error("Error executing query:", error);
+      throw error;
+    } finally {
+      await conn.end();
     }
+  }
 
-    static async find(select, where, limit = 1)
-    {
-        const filteredWhere = await super.where(where);
+  static async find(select, where, limit = 1) {
+    const filteredWhere = await super.where(where);
 
-        let sql = `
-            SELECT ${select.join(',')} 
+    let sql = `
+            SELECT ${select.join(",")} 
             FROM ${this.table}
             WHERE ${filteredWhere.wheres}
         `;
 
-        sql += ` LIMIT ${limit}`;
+    sql += ` LIMIT ${limit}`;
 
-        const conn = await connection(1);
-        try {
-            const [[rs]] = await conn.promise().execute(sql, filteredWhere.values);
+    const conn = await connection(1);
+    try {
+      const [[rs]] = await conn.promise().execute(sql, filteredWhere.values);
 
-            return rs ?? {};
-        } catch (error) {
-            console.error('Error executing query:', error);
-            throw error;
-        } finally {
-            // Đóng kết nối sau khi sử dụng
-            await conn.end();
-        }
+      return rs ?? {};
+    } catch (error) {
+      console.error("Error executing query:", error);
+      throw error;
+    } finally {
+      // Đóng kết nối sau khi sử dụng
+      await conn.end();
     }
+  }
 
-    static async get(select, where, limit = 1)
-    {
-        const [filteredWhere, filteredWhereNot, filteredwhereNotIn, filteredwhereIn] = await Promise.all([
-            super.where(where.where ?? []),
-            super.whereNot(where.whereNot ?? []),
-            super.whereNotIn(where.whereNotIn, []),
-            super.whereIn(where.whereIn ?? [])
-        ]);
+  static async get(select, where, limit = 1) {
+    const [
+      filteredWhere,
+      filteredWhereNot,
+      filteredwhereNotIn,
+      filteredwhereIn,
+    ] = await Promise.all([
+      super.where(where.where ?? []),
+      super.whereNot(where.whereNot ?? []),
+      super.whereNotIn(where.whereNotIn, []),
+      super.whereIn(where.whereIn ?? []),
+    ]);
 
-        let sql = `
-            SELECT ${select.join(',')} 
+    let sql = `
+            SELECT ${select.join(",")} 
             FROM ${this.table}
             ${
-                // (
-                //      filteredWhere?.wheres ||
-                //      filteredwhereIn?.wheres
-                // ) ? 
-                //      ` WHERE `
-                // : ``
-                // (filteredWhere?.wheres) ? filteredWhere.wheres : ``
-                // (filteredwhereIn?.wheres) ? filteredwhereIn.wheres : ``
-                [filteredWhere?.wheres, filteredWhereNot?.wheres, filteredwhereIn?.wheres]
-                    .filter(Boolean) // Loại bỏ giá trị null hoặc undefined
-                    .join(' AND ') // Nối các điều kiện bằng AND
-                    ? ` WHERE ` + 
-                            [filteredWhere?.wheres, filteredWhereNot?.wheres, filteredwhereNotIn?.wheres, filteredwhereIn?.wheres]
-                            .filter(Boolean)
-                            .join(' AND ')
-                    : ''
+              // (
+              //      filteredWhere?.wheres ||
+              //      filteredwhereIn?.wheres
+              // ) ?
+              //      ` WHERE `
+              // : ``
+              // (filteredWhere?.wheres) ? filteredWhere.wheres : ``
+              // (filteredwhereIn?.wheres) ? filteredwhereIn.wheres : ``
+              [
+                filteredWhere?.wheres,
+                filteredWhereNot?.wheres,
+                filteredwhereIn?.wheres,
+              ]
+                .filter(Boolean) // Loại bỏ giá trị null hoặc undefined
+                .join(" AND ") // Nối các điều kiện bằng AND
+                ? ` WHERE ` +
+                  [
+                    filteredWhere?.wheres,
+                    filteredWhereNot?.wheres,
+                    filteredwhereNotIn?.wheres,
+                    filteredwhereIn?.wheres,
+                  ]
+                    .filter(Boolean)
+                    .join(" AND ")
+                : ""
             }
         `;
 
-        if (limit != 'ALL') {
-            sql += ` LIMIT ${limit}`;
-        }
-
-        const bindings = filteredWhere.values.concat(filteredWhereNot.values, filteredwhereNotIn.values, filteredwhereIn.values)
-
-        const conn = await connection(1);
-        try {
-            const [rs] = await conn.promise().execute(sql, bindings);
-
-            return rs ?? [];
-        } catch (error) {
-            console.error('Error executing query:', error);
-            throw error;
-        } finally {
-            // Đóng kết nối sau khi sử dụng
-            await conn.end();
-        }
+    if (limit != "ALL") {
+      sql += ` LIMIT ${limit}`;
     }
 
-    static async getDetail(code, filter)
-    {
-        let sql = `
+    const bindings = filteredWhere.values.concat(
+      filteredWhereNot.values,
+      filteredwhereNotIn.values,
+      filteredwhereIn.values
+    );
+
+    const conn = await connection(1);
+    try {
+      const [rs] = await conn.promise().execute(sql, bindings);
+
+      return rs ?? [];
+    } catch (error) {
+      console.error("Error executing query:", error);
+      throw error;
+    } finally {
+      // Đóng kết nối sau khi sử dụng
+      await conn.end();
+    }
+  }
+
+  static async getDetail(code, filter) {
+    let sql = `
             SELECT 
                 t.id,
                 t.code, 
@@ -613,97 +615,99 @@ class StudentModel extends Model {
             LEFT JOIN schools ON schools.id = t.schools_id
         `;
 
-        let where = [];
-        let bindings = [];
-        
-        where.push(`t.code = ?`);
-        bindings.push(code);
+    let where = [];
+    let bindings = [];
 
-        if (where.length > 0) {
-            sql += ` WHERE ${where.join(' AND ')}`;
-        }
+    where.push(`t.code = ?`);
+    bindings.push(code);
 
-        const conn = await connection(1); // Get the database connection
-        try {
-            const [[rs]] = await conn.promise().execute(sql, bindings);
-
-            return rs ?? {};
-        } catch (error) {
-            console.error('Error executing query:', error);
-            throw error;
-        } finally {
-            await conn.end();
-        }
+    if (where.length > 0) {
+      sql += ` WHERE ${where.join(" AND ")}`;
     }
 
-    static async getHistories(filter, page = 1, pageSize = 20)
-    {
-        if (!filter?.code) {
-            return [];
-        }
+    const conn = await connection(1);
+    try {
+      const [[rs]] = await conn.promise().execute(sql, bindings);
 
-        const logs = await EventLogModel.getList(
-            {
-                event_type: 'transfer_class',
-                entity_type: 'student',
-                entity_id: filter.code
-            },
-            page,
-            pageSize
-        );
+      return rs ?? {};
+    } catch (error) {
+      console.error("Error executing query:", error);
+      throw error;
+    } finally {
+      await conn.end();
+    }
+  }
 
-        let data = logs.data;
-        if (data.length) {
-            // Trích xuất mã `before_register_class_code` và `after_register_class_code`
-            const register_class_codes = data.flatMap(item => {
-                const details = item.details;
-                return [details.before_register_class_code, details.after_register_class_code];
-            });
-            // before_class_name
-            // after_class_name
-            const conn = await connection(1);
-            
+  static async getHistories(filter, page = 1, pageSize = 20) {
+    if (!filter?.code) {
+      return [];
+    }
 
-            try {
-                let [classes] = await conn.promise().execute(`
+    const logs = await EventLogModel.getList(
+      {
+        event_type: "transfer_class",
+        entity_type: "student",
+        entity_id: filter.code,
+      },
+      page,
+      pageSize
+    );
+
+    let data = logs.data;
+    if (data.length) {
+      // Trích xuất mã `before_register_class_code` và `after_register_class_code`
+      const register_class_codes = data.flatMap((item) => {
+        const details = item.details;
+        return [
+          details.before_register_class_code,
+          details.after_register_class_code,
+        ];
+      });
+      // before_class_name
+      // after_class_name
+      const conn = await connection(1);
+
+      try {
+        let [classes] = await conn.promise().execute(
+          `
                     SELECT
                         rc.code,
                         classes.name as class_name
                     FROM register_class as rc
                     LEFT JOIN classes ON classes.code = rc.class_code
-                    WHERE rc.code IN (${Object.keys(register_class_codes).map(() => '?').join(', ')})
-                `, register_class_codes);
+                    WHERE rc.code IN (${Object.keys(register_class_codes)
+                      .map(() => "?")
+                      .join(", ")})
+                `,
+          register_class_codes
+        );
 
-                classes = new Map(
-                    classes.map(item => [item.code, item.class_name])
-                );
+        classes = new Map(classes.map((item) => [item.code, item.class_name]));
 
-                data = data.map((item) => {
+        data = data.map((item) => {
+          item.details.before_class_name =
+            classes.get(item.details.before_register_class_code) ?? null;
+          item.details.after_class_name =
+            classes.get(item.details.after_register_class_code) ?? null;
 
-                    item.details.before_class_name = classes.get(item.details.before_register_class_code) ?? null;
-                    item.details.after_class_name = classes.get(item.details.after_register_class_code) ?? null;
-
-                    return item;
-                });
-            } catch (error) {
-                console.error('Error executing query:', error);
-                throw error;
-            } finally {
-                await conn.end();
-            }
-
-            
-        }
-
-        return {
-            total: logs.total ?? 0,
-            data: data ?? []
-        }
+          return item;
+        });
+      } catch (error) {
+        console.error("Error executing query:", error);
+        throw error;
+      } finally {
+        await conn.end();
+      }
     }
 
-    static async getList(filter, page = 1, pageSize = 20)
-    {
-        let sql = `
+    return {
+      total: logs.total ?? 0,
+      data: data ?? [],
+    };
+  }
+
+  static async getList(filter, page = 1, pageSize = 20) {
+    let sql = `
             SELECT 
                 t.id,
                 t.code, 
@@ -735,99 +739,105 @@ class StudentModel extends Model {
             LEFT JOIN branches ON branches.code = deals.branch_code 
         `;
 
-        let where = [];
-        let bindings = [];
-        if (filter.status) {
-            where.push(`t.status = ?`);
-            bindings.push(filter.status);
-        } else {
-            where.push(`t.status = ?`);
-            // Đang học
-            bindings.push(41);
-        }
-
-        if (filter.search) {
-            const full_name = filter.search;
-            const match = full_name.match(/\S+(?=\s*$)/);
-
-            if (match) {
-                const last_name = match[0]; // Lấy từ cuối cùng làm last_name
-                const first_name = full_name.replace(/\s*\S+\s*$/, '').trim(); // Phần còn lại làm first_name
-
-                console.log("First Name:", last_name);
-                console.log("Last Name:", first_name);
-                const whereFullName = [];
-                const bindingsFullName = [];
-                if (first_name) {
-                    const escaped_first_name = first_name.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'); // Escape special characters
-                    whereFullName.push(`t.first_name REGEXP ? OR t.last_name REGEXP ?`)
-                    bindingsFullName.push(escaped_first_name);
-                    bindingsFullName.push(escaped_first_name);
-                }
-
-                if (last_name) {
-                    const escaped_last_name = last_name.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'); // Escape special characters
-                    whereFullName.push(`t.first_name REGEXP ? OR t.last_name REGEXP ?`)
-                    bindingsFullName.push(escaped_last_name);
-                    bindingsFullName.push(escaped_last_name);
-                }
-
-                const escaped_code = filter.search.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'); // Escape special characters
-                bindings.push(escaped_code);
-
-                where.push(`(t.code REGEXP ? OR ${whereFullName.join(' OR ')})`);
-                bindings = [...bindings, ...bindingsFullName];
-            } else {
-                const escaped_code = filter.search.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'); // Escape special characters
-                where.push('(t.code REGEXP ? OR )');
-                bindings.push(escaped_code);
-            }
-        }
-
-        if (filter.type) {
-            where.push(`program.type = ?`);
-            bindings.push(filter.type);
-        }
-
-        if (filter.branch_code) {
-            where.push(`branches.code = ?`);
-            bindings.push(filter.branch_code);
-        }
-
-        if (filter.program_code) {
-            where.push(`program.code = ?`);
-            bindings.push(filter.program_code)
-        }
-
-        if (where.length > 0) {
-            sql += ` WHERE ${where.join(' AND ')}`;
-        }
-
-        const offset = (page - 1) * pageSize;
-        const totalSql = `SELECT COUNT(*) as CNT FROM (${sql}) as count_table`;
-        sql += ` LIMIT ${pageSize} OFFSET ${offset}`;
-
-        // console.log(JSON.stringify(bindings), 'test');
-
-        const conn = await connection(1); // Get the database connection
-        try {
-            // const [result] = await conn.promise().execute(sql, bindings);
-            const [[totalResult], [rows]] = await Promise.all([
-                conn.promise().execute(totalSql, bindings),
-                conn.promise().execute(sql, bindings)
-            ]);
-
-            return {
-                total: totalResult[0].CNT,
-                data: rows ?? {}
-            };
-        } catch (error) {
-            console.error('Error executing query:', error);
-            throw error;
-        } finally {
-            await conn.end();
-        }
+    let where = [];
+    let bindings = [];
+    if (filter.status) {
+      where.push(`t.status = ?`);
+      bindings.push(filter.status);
+    } else {
+      where.push(`t.status = ?`);
+      // Đang học
+      bindings.push(41);
     }
+
+    if (filter.search) {
+      const full_name = filter.search;
+      const match = full_name.match(/\S+(?=\s*$)/);
+
+      if (match) {
+        const last_name = match[0]; // Lấy từ cuối cùng làm last_name
+        const first_name = full_name.replace(/\s*\S+\s*$/, "").trim(); // Phần còn lại làm first_name
+        const whereFullName = [];
+        const bindingsFullName = [];
+        if (first_name) {
+          const escaped_first_name = first_name.replace(
+            /[.*+?^${}()|[\]\\]/g,
+            "\\$&"
+          ); // Escape special characters
+          whereFullName.push(`t.first_name REGEXP ? OR t.last_name REGEXP ?`);
+          bindingsFullName.push(escaped_first_name);
+          bindingsFullName.push(escaped_first_name);
+        }
+
+        if (last_name) {
+          const escaped_last_name = last_name.replace(
+            /[.*+?^${}()|[\]\\]/g,
+            "\\$&"
+          ); // Escape special characters
+          whereFullName.push(`t.first_name REGEXP ? OR t.last_name REGEXP ?`);
+          bindingsFullName.push(escaped_last_name);
+          bindingsFullName.push(escaped_last_name);
+        }
+
+        const escaped_code = filter.search.replace(
+          /[.*+?^${}()|[\]\\]/g,
+          "\\$&"
+        ); // Escape special characters
+        bindings.push(escaped_code);
+
+        where.push(`(t.code REGEXP ? OR ${whereFullName.join(" OR ")})`);
+        bindings = [...bindings, ...bindingsFullName];
+      } else {
+        const escaped_code = filter.search.replace(
+          /[.*+?^${}()|[\]\\]/g,
+          "\\$&"
+        ); // Escape special characters
+        where.push("(t.code REGEXP ? OR )");
+        bindings.push(escaped_code);
+      }
+    }
+
+    if (filter.type) {
+      where.push(`program.type = ?`);
+      bindings.push(filter.type);
+    }
+
+    if (filter.branch_code) {
+      where.push(`branches.code = ?`);
+      bindings.push(filter.branch_code);
+    }
+
+    if (filter.program_code) {
+      where.push(`program.code = ?`);
+      bindings.push(filter.program_code);
+    }
+
+    if (where.length > 0) {
+      sql += ` WHERE ${where.join(" AND ")}`;
+    }
+
+    const offset = (page - 1) * pageSize;
+    const totalSql = `SELECT COUNT(*) as CNT FROM (${sql}) as count_table`;
+    sql += ` LIMIT ${pageSize} OFFSET ${offset}`;
+
+    const conn = await connection(1);
+    try {
+      const [[totalResult], [rows]] = await Promise.all([
+        conn.promise().execute(totalSql, bindings),
+        conn.promise().execute(sql, bindings),
+      ]);
+
+      return {
+        total: totalResult[0].CNT,
+        data: rows ?? {},
+      };
+    } catch (error) {
+      console.error("Error executing query:", error);
+      throw error;
+    } finally {
+      await conn.end();
+    }
+  }
 }
 
 module.exports = { StudentModel };

@@ -17,7 +17,7 @@ spec:
     spec:
       containers:
       - name: kaizen-backend
-        image: s2bantnd/kaizen_backend:0.0.274
+        image: s2bantnd/kaizen_backend:0.0.284
         ports:
         - containerPort: 3000
         - containerPort: 8000

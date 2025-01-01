@@ -1,186 +1,190 @@
-const { StudentModel } = require('../../models/Kaizen/StudentModel');
-const { RegisterClassModel } = require('../../models/Kaizen/RegisterClassModel');
-const { RegisterClassStudentModel } = require('../../models/Kaizen/RegisterClassStudentModel');
-const { CoursesPointTypesModel } = require('../../models/Kaizen/PTN/CoursesPointTypesModel');
+const { StudentModel } = require("../../models/Kaizen/StudentModel");
+const {
+  RegisterClassModel,
+} = require("../../models/Kaizen/RegisterClassModel");
+const {
+  RegisterClassStudentModel,
+} = require("../../models/Kaizen/RegisterClassStudentModel");
+const {
+  CoursesPointTypesModel,
+} = require("../../models/Kaizen/PTN/CoursesPointTypesModel");
+const {
+  PtnLessonLessonGroupModel,
+} = require("../../models/Kaizen/PTN/PtnLessonLessonGroupModel");
 
 class CoursesPointsValidator {
-     
-     static async points(req) {
-          let code = 0;
-          
-          const student_code = req.student_code;
-          const class_code = req.class_code;
-          const courses_point_types = req.courses_point_types;
-          const lesson_group = req.lesson_group;
+  static async points(req) {
+    let code = 0;
 
-          if (
-               !student_code ||
-               !class_code ||
-               !courses_point_types ||
-               !lesson_group
-          ) {
-               code = 1;
-               return {code: code, message: 'Not enough parameters'};
-          }
+    const student_code = req.student_code;
+    const class_code = req.class_code;
+    const courses_point_types = req.courses_point_types;
+    const lesson_group = req.lesson_group;
 
-          if (
-               !Array.isArray(student_code)
-          ) {
-               code = 1;
-               return {code:code, message: "Student Code must be array"};
-          }
+    if (!student_code || !class_code || !courses_point_types || !lesson_group) {
+      code = 1;
+      return { code: code, message: "Not enough parameters" };
+    }
 
-          if (
-               student_code.length <= 0
-          ) {
-               code = 1;
-               return {code:code, message: "Student Code not null"};
-          }
+    if (!Array.isArray(student_code)) {
+      code = 1;
+      return { code: code, message: "Student Code must be array" };
+    }
 
-          if (
-               !Array.isArray(lesson_group)
-          ) {
-               code = 1;
-               return {code:code, message: "Lesson Group must be array"};
-          }
+    if (student_code.length <= 0) {
+      code = 1;
+      return { code: code, message: "Student Code not null" };
+    }
 
-          if (
-               lesson_group.length <= 0
-          ) {
-               code = 1;
-               return {code:code, message: "Lesson Group not null"};
-          }
+    if (!Array.isArray(lesson_group)) {
+      code = 1;
+      return { code: code, message: "Lesson Group must be array" };
+    }
 
-          if (
-               student_code.length != lesson_group.length
-          ) {
-               code = 1;
-               return {code:code, message: "Student Code and Lesson Group not match!"};
-          }
+    if (lesson_group.length <= 0) {
+      code = 1;
+      return { code: code, message: "Lesson Group not null" };
+    }
 
-          if (
-               student_code.length > 20
-          ) {
-               code = 1;
-               return {code:code, message: "Student Code max 20"};
-          }
+    if (student_code.length != lesson_group.length) {
+      code = 1;
+      return {
+        code: code,
+        message: "Student Code and Lesson Group not match!",
+      };
+    }
 
-          if (
-               lesson_group.length > 20
-          ) {
-               code = 1;
-               return {code:code, message: "Lesson Group max 20"};
-          }
+    if (student_code.length > 20) {
+      code = 1;
+      return { code: code, message: "Student Code max 20" };
+    }
 
-          const students = await StudentModel.get(
-               ['code'], 
-               {
-                    whereIn: {
-                         code: student_code
-                    }
-               }, 
-               "ALL"
-          );
-          if (
-               students.length <= 0
-          ) {
-               code = 1;
-               return {code: code, message: 'Students is valid!'};
-          }
+    if (lesson_group.length > 20) {
+      code = 1;
+      return { code: code, message: "Lesson Group max 20" };
+    }
 
-          const students_valid = student_code.filter(value => {
-               const code = value;
-               if (students.find(item => item.code == code)) {
-                   return false;
-               }
-   
-               return true;
-          });
+    const students = await StudentModel.get(
+      ["code"],
+      {
+        whereIn: {
+          code: student_code,
+        },
+      },
+      "ALL"
+    );
+    if (students.length <= 0) {
+      code = 1;
+      return { code: code, message: "Students is valid!" };
+    }
 
-          if (
-               students_valid.length > 0
-          ) {
-               code = 1;
-               return {code: code, message: `Student Code ${students_valid.join(',')} not valid!`};
-          }
+    const students_valid = student_code.filter((value) => {
+      const code = value;
+      if (students.find((item) => item.code == code)) {
+        return false;
+      }
 
-          const register_class_valid = await RegisterClassModel.find(
-               ['code'],
-               {
-                    class_code: class_code
-               }
-          );
-          if (
-               !register_class_valid.code
-          ) {
-               code = 1;
-               return {code: code, message: "Class code not exist"};
-          }
+      return true;
+    });
 
-          const register_class_student = await RegisterClassStudentModel.get(
-               ['*'],
-               {
-                    where: {
-                         status: 'Actived'
-                    },
-                    whereIn: {
-                         student_code: student_code
-                    }
-               },
-               "ALL"
-          );
+    if (students_valid.length > 0) {
+      code = 1;
+      return {
+        code: code,
+        message: `Student Code ${students_valid.join(",")} not valid!`,
+      };
+    }
 
-          const students_join_class_valid = student_code.filter(value => {
-               const code = value;
-               if (register_class_student.find(item => (item.student_code == code && item.register_class_code == register_class_valid.code))) {
-                   return false;
-               }
-   
-               return true;
-          });
-          if (
-               students_join_class_valid.length > 0
-          ) {
-               code = 1;
-               return {code:code, message: `Student ${students_join_class_valid.join(',')} not join class`}
-          }
+    const register_class_valid = await RegisterClassModel.find(["code"], {
+      class_code: class_code,
+    });
+    if (!register_class_valid.code) {
+      code = 1;
+      return { code: code, message: "Class code not exist" };
+    }
 
-          const courses_point = await CoursesPointTypesModel.find(
-               ['code'],
-               {
-                    code: courses_point_types
-               }
-          );
-          if (
-               !courses_point.code
-          ) {
-               code = 1;
-               return {code: code, message: "Courses Point Types not exist"};
-          }
-          
-          const lesson_group_valid = lesson_group.filter((item) => {
-               const value = Object.values(item);
-               console.log(value)
-               if (
-                    !Number.isSafeInteger(value)
-               ) {
-                    return false;
-               }
+    const register_class_student = await RegisterClassStudentModel.get(
+      ["*"],
+      {
+        where: {
+          status: "Actived",
+        },
+        whereIn: {
+          student_code: student_code,
+        },
+      },
+      "ALL"
+    );
 
-               return true;
-          });
-          if (
-               lesson_group_valid.length > 0
-          ) {
-               code = 1;
-               return {code: code, message: `Lesson Group ${JSON.stringify(lesson_group_valid)} not valid`};
-          }
+    const students_join_class_valid = student_code.filter((value) => {
+      const code = value;
+      if (
+        register_class_student.find(
+          (item) =>
+            item.student_code == code &&
+            item.register_class_code == register_class_valid.code
+        )
+      ) {
+        return false;
+      }
 
-          const lessonGroupKey = lesson_group.flatMap(item => Object.keys(item));
-          console.log(lessonGroupKey);
+      return true;
+    });
+    if (students_join_class_valid.length > 0) {
+      code = 1;
+      return {
+        code: code,
+        message: `Student ${students_join_class_valid.join(
+          ","
+        )} not join class`,
+      };
+    }
 
-          return {code: code};
-     }
+    const courses_point = await CoursesPointTypesModel.find(["code"], {
+      code: courses_point_types,
+    });
+    if (!courses_point.code) {
+      code = 1;
+      return { code: code, message: "Courses Point Types not exist" };
+    }
+
+    const lessonGroupKey = lesson_group.flatMap((item) => Object.keys(item));
+    let lessonGroupKeyGet = await PtnLessonLessonGroupModel.get(
+      ["*"],
+      {
+        where: {
+          ptn_courses_point_types_code: courses_point_types,
+        },
+        whereIn: {
+          ptn_lesson_code: lessonGroupKey,
+        },
+      },
+      "ALL"
+    );
+    lessonGroupKeyGet = new Map(
+      lessonGroupKeyGet.map((item) => [item.ptn_lesson_code, { ...item }])
+    );
+    const lesson_group_valid = lesson_group.filter((item) => {
+      const value = Object.values(item);
+      const key = Object.keys(item);
+      const is_value_valid = value.every((value) => Number.isInteger(value));
+      const is_key_valid = key.every((key) => lessonGroupKeyGet.get(key));
+      if (is_value_valid && is_key_valid) {
+        return false;
+      }
+
+      return true;
+    });
+    if (lesson_group_valid.length > 0) {
+      code = 1;
+      return {
+        code: code,
+        message: `Lesson Group ${JSON.stringify(lesson_group_valid)} not valid`,
+      };
+    }
+
+    return { code: code };
+  }
 }
 
-module.exports = { CoursesPointsValidator }
+module.exports = { CoursesPointsValidator };

@@ -1,11 +1,259 @@
 const moment = require("moment");
-
 const { StudentModel } = require("../../models/Kaizen/StudentModel");
 const { ClassesModel } = require("../../models/Kaizen/ClassesModel");
 const { ConfigModel } = require("../../models/Kaizen/ConfigModel");
 
 class DailyCheckinValidator {
-  static async validateCreate(data) {
+  static async validateBasicData(data, key = "") {
+    if (!data) {
+      return {
+        code: 1,
+        message: "Data is required",
+      };
+    }
+
+    if (key && Object.keys(data).length === 0) {
+      return {
+        code: 1,
+        message: "Data is required",
+      };
+    }
+
+    if (
+      !data.class_code ||
+      (typeof data.class_code !== "string" && data.class_code.trim() === "")
+    ) {
+      return {
+        code: 1,
+        message: `Class code is required ${key ? "for item " + key : ""}`,
+      };
+    }
+
+    const cls = await ClassesModel.find(["id"], {
+      code: data.class_code,
+    });
+
+    if (!cls || !cls.id) {
+      return {
+        code: 1,
+        message: "Class not exist!",
+      };
+    }
+
+    if (!data.day || (typeof data.day !== "string" && data.day.trim() === "")) {
+      return {
+        code: 1,
+        message: `Day is required ${key ? "for student " + key : ""}`,
+      };
+    }
+
+    if (!moment(data.day, "YYYY-MM-DD").isValid()) {
+      return {
+        code: 1,
+        message: `Invalid date format ${
+          key ? "for item " + key : ""
+        }. Required format: YYYY-MM-DD`,
+      };
+    }
+
+    return {
+      code: 0,
+      message: "Basic validation passed",
+    };
+  }
+
+  static async validateCheckInData(item, key) {
+    if (!item.class_session) {
+      return {
+        code: 1,
+        message: `Class session is required for student ${item.student_code}`,
+      };
+    }
+
+    if (!item.type_checkin_id) {
+      return {
+        code: 1,
+        message: `Type check-in ID is required for student ${item.student_code}`,
+      };
+    }
+
+    const type = await ConfigModel.find(["id"], {
+      id: item.type_checkin_id,
+      properties: 2,
+    });
+
+    if (!type || !type.id) {
+      return {
+        code: 1,
+        message: `Type check-in ID not exist for student ${item.student_code}`,
+      };
+    }
+
+    if (
+      !item.student_code ||
+      (typeof item.student_code !== "string" && item.student_code.trim() === "")
+    ) {
+      return {
+        code: 1,
+        message: `Student code is required for item ${key}`,
+      };
+    }
+
+    const std = await StudentModel.find(["id"], {
+      code: item.student_code,
+    });
+
+    if (!std || !std.id) {
+      return {
+        code: 1,
+        message: `Student not exist for item ${key}`,
+      };
+    }
+
+    if (type.id === 4) {
+      if (!item.reason_id) {
+        return {
+          code: 1,
+          message: `Reason ID is required for student ${item.student_code}`,
+        };
+      }
+
+      const rs = await ConfigModel.find(["id"], {
+        id: item.reason_id,
+        properties: 32,
+      });
+
+      if (!rs || !rs.id) {
+        return {
+          code: 1,
+          message: `Reason ID not exist for student ${item.student_code}`,
+        };
+      }
+    }
+
+    if (item.comment !== undefined && item.comment !== null) {
+      if (typeof item.comment !== "string") {
+        return {
+          code: 1,
+          message: `Comment must be a string for student ${item.student_code}`,
+        };
+      }
+      if (item.comment.length > 1000) {
+        return {
+          code: 1,
+          message: `Comment length exceeds maximum limit for student ${item.student_code}`,
+        };
+      }
+    }
+
+    return {
+      code: 0,
+      message: "Check-in validation passed",
+    };
+  }
+
+  static async validateEvaluationData(item, key) {
+    if (
+      !item.student_code ||
+      (typeof item.student_code !== "string" && item.student_code.trim() === "")
+    ) {
+      return {
+        code: 1,
+        message: `Student code is required for item ${key}`,
+      };
+    }
+
+    const student = await StudentModel.find(["id"], {
+      code: item.student_code,
+    });
+
+    if (!student || !student.id) {
+      return {
+        code: 1,
+        message: `Student not exist for item ${key}`,
+      };
+    }
+
+    const fieldValidations = {
+      attendance: { properties: 24 },
+      learning_attitude: { properties: 26 },
+      physical_appearance: { properties: 21 },
+      consciousness_personality: { properties: 25 },
+      japanese_learning_ability: { properties: 27 },
+      mental_health: { properties: 28 },
+      disability: { properties: 16 },
+      japanese_language_need: { properties: 17 },
+      family_influence: { properties: 19 },
+      medical_history: { properties: 20 },
+      is_registered_elsewhere: { properties: 23 },
+    };
+
+    for (const [field, config] of Object.entries(fieldValidations)) {
+      if (
+        item[field] !== undefined &&
+        item[field] !== null &&
+        item[field] !== ""
+      ) {
+        const configValue = await ConfigModel.find(["id"], {
+          id: item[field],
+          properties: config.properties,
+        });
+
+        if (!configValue || !configValue.id) {
+          return {
+            code: 1,
+            message: `Invalid ${field.replace(/_/g, " ")} value for student ${
+              item.student_code
+            }`,
+          };
+        }
+      }
+    }
+
+    const varcharFields = [
+      "age",
+      "desired_major",
+      "physical_condition",
+      "tatoo",
+      "expected_graduation_year",
+      "military_requirement",
+      "note",
+    ];
+
+    for (const field of varcharFields) {
+      if (
+        item[field] !== undefined &&
+        item[field] !== null &&
+        item[field] !== ""
+      ) {
+        if (typeof item[field] !== "string") {
+          return {
+            code: 1,
+            message: `${field.replace(
+              /_/g,
+              " "
+            )} must be a string for student ${item.student_code}`,
+          };
+        }
+        if (item[field].length > 1000) {
+          return {
+            code: 1,
+            message: `${field.replace(
+              /_/g,
+              " "
+            )} length exceeds maximum limit for student ${item.student_code}`,
+          };
+        }
+      }
+    }
+
+    return {
+      code: 0,
+      message: "Evaluation validation passed",
+    };
+  }
+
+  static async create(data) {
     try {
       if (!data || Object.keys(data).length === 0) {
         return {
@@ -17,51 +265,15 @@ class DailyCheckinValidator {
       for (const key of Object.keys(data)) {
         const student = data[key];
 
-        const std = await StudentModel.find(["id"], {
-          code: student.student_code,
-        });
-
-        if (!std || !std.id) {
-          return {
-            code: 1,
-            message: `Student not exist for item ${key}`,
-          };
-        }
-
-        if (!student.student_code || student.student_code.trim() === "") {
-          return {
-            code: 1,
-            message: `Student code is required for item ${key}`,
-          };
-        }
-
-        if (!student.day || student.day.trim() === "") {
-          return {
-            code: 1,
-            message: `Day is required for student ${student.student_code}`,
-          };
-        }
-
-        const dateRegex = /^\d{4}-\d{2}-\d{2}$/;
-        if (!dateRegex.test(student.day)) {
-          return {
-            code: 1,
-            message: `Invalid date format for student ${student.student_code}. Required format: YYYY-MM-DD`,
-          };
-        }
-
-        const date = moment(student.day, "YYYY-MM-DD", true);
-        if (!date.isValid()) {
-          return {
-            code: 1,
-            message: `Invalid date for student ${student.student_code}. Required format: YYYY-MM-DD`,
-          };
+        const v = await this.validateBasicData(student, key);
+        if (v.code !== 0) {
+          return v;
         }
 
         if (!student.created_by) {
           return {
             code: 1,
-            message: `Created by is required for student ${student.student_code}`,
+            message: `Created by is required for student ${key}`,
           };
         }
 
@@ -72,90 +284,14 @@ class DailyCheckinValidator {
         ) {
           return {
             code: 1,
-            message: `Check-in is required and must be an array for student ${student.student_code}`,
+            message: `Check-in is required and must be an array for student ${key}`,
           };
         }
 
-        for (const checkIn of student.check_in) {
-          if (!checkIn.class_session) {
-            return {
-              code: 1,
-              message: `Class session is required for student ${student.student_code}`,
-            };
-          }
-
-          if (
-            !checkIn.type_checkin_id
-          ) {
-            return {
-              code: 1,
-              message: `Type check-in ID is required for student ${student.student_code}`,
-            };
-          }
-
-          const type = await ConfigModel.find(["id"], {
-            id: checkIn.type_checkin_id,
-            properties: 2,
-          });
-
-          if (!type || !type.id) {
-            return {
-              code: 1,
-              message: `Type check-in ID not exist for student ${student.student_code}`,
-            };
-          }
-
-          if (!checkIn.class_code || checkIn.class_code.trim() === "") {
-            return {
-              code: 1,
-              message: `Class code is required for student ${student.student_code}`,
-            };
-          }
-
-          const cls = await ClassesModel.find(["id"], {
-            code: checkIn.class_code,
-          });
-          if (!cls || !cls.id) {
-            return {
-              code: 1,
-              message: "Class not exist!",
-            };
-          }
-
-          if (type.id === 4) {
-            if (!checkIn.reason_id) {
-              return {
-                code: 1,
-                message: `Reason ID is required for student ${student.student_code}`,
-              };
-            }
-
-            const rs = await ConfigModel.find(["id"], {
-              id: checkIn.reason_id,
-              properties: 32,
-            });
-
-            if (!rs || !rs.id) {
-              return {
-                code: 1,
-                message: `Reason ID not exist for student ${student.student_code}`,
-              };
-            }
-          }
-
-          if (checkIn.comment !== undefined && checkIn.comment !== null) {
-            if (typeof checkIn.comment !== "string") {
-              return {
-                code: 1,
-                message: `Comment must be a string for student ${student.student_code}`,
-              };
-            }
-            if (checkIn.comment.length > 1000) {
-              return {
-                code: 1,
-                message: `Comment length exceeds maximum limit for student ${student.student_code}`,
-              };
-            }
+        for (const item of student.check_in) {
+          const v = await this.validateCheckInData(item, key);
+          if (v.code !== 0) {
+            return v;
           }
         }
       }
@@ -171,6 +307,152 @@ class DailyCheckinValidator {
         message: "Internal validation error",
       };
     }
+  }
+
+  static async validateGetListStudentCheckinByClass(data) {
+    try {
+      const v = await this.validateBasicData(data);
+      if (v.code !== 0) {
+        return v;
+      }
+
+      const k = this.validatClassSession(data);
+      if (k.code !== 0) {
+        return k;
+      }
+
+      return {
+        code: 0,
+        message: "Validation passed",
+      };
+    } catch (error) {
+      console.error("Validation error:", error);
+      return {
+        code: 1,
+        message: "Internal validation error",
+      };
+    }
+  }
+
+  static validatClassSession(data) {
+    if (typeof data.class_session === "string") {
+      try {
+        data.class_session = JSON.parse(data.class_session);
+      } catch (error) {
+        return {
+          code: 1,
+          message: `Invalid class session format`,
+        };
+      }
+    }
+
+    if (!Array.isArray(data.class_session)) {
+      return {
+        code: 1,
+        message: `Class session must be an array`,
+      };
+    }
+
+    if (
+      !data.class_session.every(
+        (session) => typeof session === "number" && Number.isInteger(session)
+      )
+    ) {
+      return {
+        code: 1,
+        message: `Class session must be an array of integers`,
+      };
+    }
+    return {
+      code: 0,
+      message: "Validation passed",
+    };
+  }
+
+  static async evaluation(data) {
+    try {
+      if (!data || Object.keys(data).length === 0) {
+        return {
+          code: 1,
+          message: "Data is required",
+        };
+      }
+
+      for (const key of Object.keys(data)) {
+        const student = data[key];
+
+        const v = await this.validateBasicData(student, key);
+        if (v.code !== 0) {
+          return v;
+        }
+
+        if (!student.created_by) {
+          return {
+            code: 1,
+            message: `Created by is required for student ${key}`,
+          };
+        }
+
+        for (const item of student.evaluation) {
+          const v = await this.validateEvaluationData(item, key);
+          if (v.code !== 0) {
+            return v;
+          }
+        }
+      }
+
+      return {
+        code: 0,
+        message: "Validation passed",
+      };
+    } catch (error) {
+      console.error("Validation error:", error);
+      return {
+        code: 1,
+        message: "Internal validation error",
+      };
+    }
+  }
+
+  static async getStudentEvaluation(data) {
+    try {
+      const v = await this.validateBasicData(data);
+      if (v.code !== 0) {
+        return v;
+      }
+
+      if (
+        !data.student_code ||
+        (typeof data.student_code !== "string" &&
+          data.student_code.trim() === "")
+      ) {
+        return {
+          code: 1,
+          message: "Student code is required",
+        };
+      }
+
+      const std = await StudentModel.find(["id"], {
+        code: data.student_code,
+      });
+
+      if (!std || !std.id) {
+        return {
+          code: 1,
+          message: `Student not exist`,
+        };
+      }
+
+      const k = this.validatClassSession(data);
+      if (k.code !== 0) {
+        return k;
+      }
+
+      return {
+        code: 0,
+        message: "Validation passed",
+      };
+    } catch (error) {}
   }
 }
 

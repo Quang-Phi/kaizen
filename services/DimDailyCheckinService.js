@@ -1,10 +1,19 @@
-const { DimDailyCheckinModel } = require("../models/Kaizen/DimDailyCheckinModel");
+const {
+  DimDailyCheckinModel,
+} = require("../models/Kaizen/DimDailyCheckinModel");
 
 class DimDailyCheckinService {
-  static async create(dimCheckinData) {
+  static async create(data) {
     try {
-      await DimDailyCheckinModel.create(dimCheckinData);
-      return true;
+      return await DimDailyCheckinModel.create(data);
+    } catch (error) {
+      throw error;
+    }
+  }
+
+  static async update(data) {
+    try {
+      return await DimDailyCheckinModel.update(data);
     } catch (error) {
       throw error;
     }

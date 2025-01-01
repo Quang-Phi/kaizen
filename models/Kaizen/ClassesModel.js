@@ -1,35 +1,28 @@
-const { connection } = require('../../config/database');
-const { Model } = require('../Model');
-const { v4: uuidv4 } = require('uuid');
-const moment = require('moment');
+const { connection } = require("../../config/database");
+const { Model } = require("../Model");
+const { v4: uuidv4 } = require("uuid");
+const moment = require("moment");
+
 class ClassesModel extends Model {
+  static table = "classes";
+  static primaryKey = "code";
+  static fillable = [
+    "id",
+    "code",
+    "name",
+    "status",
+    "created_by",
+    "updated_by",
+    "created_at",
+    "updated_at",
+  ];
 
-    static table = 'classes';
+  static createPrimaryKey(name) {
+    return name.replace(/\s/g, "");
+  }
 
-    static primaryKey = 'code';
-
-    static fillable = [
-        'id',
-        'code',
-        'name',
-        'status',
-        'created_by',
-        'updated_by',
-        'created_at',
-        'updated_at'
-    ]
-
-    constructor() {
-        
-    }
-
-    static createPrimaryKey(name) {
-        return name.replace(/\s/g, '');
-   }
-
-    static async getList(filter, page = 1, pageSize = 20) 
-    {
-        let sql = `
+  static async getList(filter, page = 1, pageSize = 20) {
+    let sql = `
             WITH m1 as (
                 select 
                     distinct(code) as code, 
@@ -127,77 +120,75 @@ class ClassesModel extends Model {
             LEFT JOIN n ON m4.teacher_code = n.teacher_code 
         `;
 
-        const where = [];
-        const bindings = [];
+    const where = [];
+    const bindings = [];
 
-        where.push(`m4.status_id = ?`);
-        bindings.push(1);
+    where.push(`m4.status_id = ?`);
+    bindings.push(1);
 
-        if (filter.class_name) {
-            // where.push(`m4.class_name REGEXP ?`);
-            // bindings.push(filter.class_name);
-            const escapedClassName = filter.class_name.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'); // Escape special characters
-            where.push(`m4.class_name REGEXP ?`);
-            bindings.push(escapedClassName);
-        }
-
-        if (filter.where_class_name) {
-            where.push(`m4.class_name = ?`);
-            bindings.push(filter.where_class_name);
-        }
-
-        if (filter.area_code) {
-            where.push(`m4.area_code = ?`);
-            bindings.push(filter.area_code);
-        }
-
-        if (filter.status_id) {
-            where.push(`m4.status = ?`);
-            bindings.push(filter.status_id);
-        }
-
-        if (filter.class_type) {
-            where.push(`m4.class_type = ?`);
-            bindings.push(filter.class_type);
-        }
-
-        if (filter.branch_code) {
-            where.push(`m4.branch_code = ?`);
-            bindings.push(filter.branch_code);
-        }
-
-        if (where.length > 0) {
-            sql += ` WHERE ${where.join(' AND ')}`;
-        }
-
-        const offset = (page - 1) * pageSize;
-        const totalSql = `SELECT COUNT(*) as CNT FROM (${sql}) as count_table`;
-        sql += ` LIMIT ${pageSize} OFFSET ${offset}`;
-
-        // Get the database connection
-        const conn = await connection(1);
-        try {
-            const [[totalResult], [rows]] = await Promise.all([
-                conn.promise().execute(totalSql, bindings),
-                conn.promise().execute(sql, bindings)
-            ]);
-
-            return {
-                total: totalResult[0].CNT,
-                data: rows ?? {}
-            };
-        } catch (error) {
-            console.log('Error fetching config from database: ' + error.message);
-            throw error;
-        } finally {
-            // Đóng kết nối sau khi sử dụng
-            await conn.end();
-        }
+    if (filter.class_name) {
+      const escapedClassName = filter.class_name.replace(
+        /[.*+?^${}()|[\]\\]/g,
+        "\\$&"
+      ); // Escape special characters
+      where.push(`m4.class_name REGEXP ?`);
+      bindings.push(escapedClassName);
     }
 
-    static async getDetail(id, filter)
-    {
-        let sql = `
+    if (filter.where_class_name) {
+      where.push(`m4.class_name = ?`);
+      bindings.push(filter.where_class_name);
+    }
+
+    if (filter.area_code) {
+      where.push(`m4.area_code = ?`);
+      bindings.push(filter.area_code);
+    }
+
+    if (filter.status_id) {
+      where.push(`m4.status = ?`);
+      bindings.push(filter.status_id);
+    }
+
+    if (filter.class_type) {
+      where.push(`m4.class_type = ?`);
+      bindings.push(filter.class_type);
+    }
+
+    if (filter.branch_code) {
+      where.push(`m4.branch_code = ?`);
+      bindings.push(filter.branch_code);
+    }
+
+    if (where.length > 0) {
+      sql += ` WHERE ${where.join(" AND ")}`;
+    }
+
+    const offset = (page - 1) * pageSize;
+    const totalSql = `SELECT COUNT(*) as CNT FROM (${sql}) as count_table`;
+    sql += ` LIMIT ${pageSize} OFFSET ${offset}`;
+
+    const conn = await connection(1);
+    try {
+      const [[totalResult], [rows]] = await Promise.all([
+        conn.promise().execute(totalSql, bindings),
+        conn.promise().execute(sql, bindings),
+      ]);
+
+      return {
+        total: totalResult[0].CNT,
+        data: rows ?? {},
+      };
+    } catch (error) {
+      console.log("Error fetching config from database: " + error.message);
+      throw error;
+    } finally {
+      await conn.end();
+    }
+  }
+
+  static async getDetail(id, filter) {
+    let sql = `
             WITH m1 as (
                 select 
                     distinct(code) as code, 
@@ -275,9 +266,14 @@ class ClassesModel extends Model {
                             )
                         FROM register_class_calendar AS rcc
                         WHERE rcc.register_class_code = register_class.code AND
-                        ${filter.date ? 
-                            ` rcc.date BETWEEN '${filter.date[0]}' AND '${filter.date[1]}'` :
-                            ` rcc.date BETWEEN '${moment().subtract(7, "days").format('YYYY-MM-DD')}' AND '${moment().format('YYYY-MM-DD')}'`
+                        ${
+                          filter.date
+                            ? ` rcc.date BETWEEN '${filter.date[0]}' AND '${filter.date[1]}'`
+                            : ` rcc.date BETWEEN '${moment()
+                                .subtract(7, "days")
+                                .format("YYYY-MM-DD")}' AND '${moment().format(
+                                "YYYY-MM-DD"
+                              )}'`
                         }
                     ), JSON_ARRAY()) as register_class_calendar,
                     DATE_FORMAT(register_class.opening_date, '%Y-%m-%d') as opening_date, 
@@ -363,31 +359,37 @@ class ClassesModel extends Model {
             LIMIT 1
         `;
 
-        const conn = await connection(1);
-        try {
-            const [[rs]] = await conn.promise().execute(sql);
-            
-            if (rs.default_class_session && typeof rs.default_class_session === 'string' && rs.default_class_session.trim()) {
-                rs.default_class_session = JSON.parse(rs.default_class_session)
-            }
+    const conn = await connection(1);
+    try {
+      const [[rs]] = await conn.promise().execute(sql);
 
-            if (rs.register_class_calendar && typeof rs.register_class_calendar === 'string' && rs.register_class_calendar.trim()) {
-                rs.register_class_calendar = JSON.parse(rs.register_class_calendar)
-            }
+      if (
+        rs.default_class_session &&
+        typeof rs.default_class_session === "string" &&
+        rs.default_class_session.trim()
+      ) {
+        rs.default_class_session = JSON.parse(rs.default_class_session);
+      }
 
-            return rs ?? {};
-        } catch (error) {
-            console.error('Error executing query:', error);
-            throw error;
-        } finally {
-            // Đóng kết nối sau khi sử dụng
-            await conn.end();
-        }
+      if (
+        rs.register_class_calendar &&
+        typeof rs.register_class_calendar === "string" &&
+        rs.register_class_calendar.trim()
+      ) {
+        rs.register_class_calendar = JSON.parse(rs.register_class_calendar);
+      }
+
+      return rs ?? {};
+    } catch (error) {
+      console.error("Error executing query:", error);
+      throw error;
+    } finally {
+      await conn.end();
     }
+  }
 
-    static async getCalendar(filter, page = 1, pageSize = 20)
-    {
-        let sql = `
+  static async getCalendar(filter, page = 1, pageSize = 20) {
+    let sql = `
             WITH m1 AS (
                 SELECT 
                     DISTINCT(code) AS code, 
@@ -464,9 +466,14 @@ class ClassesModel extends Model {
                             )
                         FROM register_class_calendar AS rcc
                         WHERE rcc.register_class_code = register_class.code AND 
-                        ${filter.date ? 
-                            ` rcc.date BETWEEN '${filter.date[0]}' AND '${filter.date[1]}'` :
-                            ` rcc.date BETWEEN '${moment().subtract(7, "days").format('YYYY-MM-DD')}' AND '${moment().format('YYYY-MM-DD')}'`
+                        ${
+                          filter.date
+                            ? ` rcc.date BETWEEN '${filter.date[0]}' AND '${filter.date[1]}'`
+                            : ` rcc.date BETWEEN '${moment()
+                                .subtract(7, "days")
+                                .format("YYYY-MM-DD")}' AND '${moment().format(
+                                "YYYY-MM-DD"
+                              )}'`
                         }
                     ), JSON_ARRAY()) AS register_class_calendar
                 FROM classes AS c
@@ -521,269 +528,280 @@ class ClassesModel extends Model {
         
         `;
 
-        const where = [];
-        const bindings = [];
+    const where = [];
+    const bindings = [];
 
-        // Giữ nguyên thứ tự bindings
-        if (filter.teacher_code) {
-            sql = sql.replace('[filter.teacher_code]', ` AND cs.teacher_code = ? `);
-            bindings.push(filter.teacher_code);
-        } else {
-            sql = sql.replace('[filter.teacher_code]', '');
-        }
-
-        where.push(`m4.status_id = ?`);
-        bindings.push(1);
-
-        if (filter.class_name) {
-            // where.push(`m4.class_name REGEXP ?`);
-            // bindings.push(filter.class_name);
-            const escapedClassName = filter.class_name.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'); // Escape special characters
-            where.push(`m4.class_name REGEXP ?`);
-            bindings.push(escapedClassName);
-        }
-
-        if (filter.area_code) {
-            where.push(`m4.area_code = ?`);
-            bindings.push(filter.area_code);
-        }
-
-        if (where.length > 0) {
-            sql += ` WHERE ${where.join(' AND ')}`;
-        }
-        
-        const offset = (page - 1) * pageSize;
-        const totalSql = `SELECT COUNT(*) as CNT FROM (${sql}) as count_table`;
-
-        sql += ` LIMIT ${pageSize} OFFSET ${offset}`;
-
-        // Get the database connection
-        const conn = await connection(1);
-        try {
-            const [[totalResult], [rows]] = await Promise.all([
-                conn.promise().execute(totalSql, bindings),
-                conn.promise().execute(sql, bindings)
-            ]);
-
-            const formattedRows = await Promise.all(rows.map((item) => {
-                try {
-                    const register_class_calendar = 
-                        typeof item.register_class_calendar === 'string' && item.register_class_calendar.trim()
-                            ? JSON.parse(item.register_class_calendar)
-                            : item.register_class_calendar;
-                    
-                    item.register_class_calendar = register_class_calendar
-
-                    item.default_class_session = 
-                        typeof item.default_class_session === 'string' && item.default_class_session.trim()
-                            ? JSON.parse(item.default_class_session)
-                            : item.default_class_session;
-                } catch (err) {
-                    item.register_class_calendar = [];
-                    item.default_class_session = [];
-
-                    console.error(`Invalid JSON for register_class_calendar: ${item}`, err);
-                }
-                return item;
-            }));
-        
-            return {
-                total: totalResult[0]?.CNT || 0,
-                data: formattedRows || []
-                // data: rows
-            };
-        } catch (error) {
-            console.log('Error fetching config from database: ' + error.message);
-        }
+    if (filter.teacher_code) {
+      sql = sql.replace("[filter.teacher_code]", ` AND cs.teacher_code = ? `);
+      bindings.push(filter.teacher_code);
+    } else {
+      sql = sql.replace("[filter.teacher_code]", "");
     }
 
-    static async isExists(where) 
-    {
-        const filteredWhere = await super.where(where);
+    where.push(`m4.status_id = ?`);
+    bindings.push(1);
 
-        const conn = await connection(1);
-        let sql = `
+    if (filter.class_name) {
+      const escapedClassName = filter.class_name.replace(
+        /[.*+?^${}()|[\]\\]/g,
+        "\\$&"
+      );
+      where.push(`m4.class_name REGEXP ?`);
+      bindings.push(escapedClassName);
+    }
+
+    if (filter.area_code) {
+      where.push(`m4.area_code = ?`);
+      bindings.push(filter.area_code);
+    }
+
+    if (where.length > 0) {
+      sql += ` WHERE ${where.join(" AND ")}`;
+    }
+
+    const offset = (page - 1) * pageSize;
+    const totalSql = `SELECT COUNT(*) as CNT FROM (${sql}) as count_table`;
+
+    sql += ` LIMIT ${pageSize} OFFSET ${offset}`;
+
+    const conn = await connection(1);
+    try {
+      const [[totalResult], [rows]] = await Promise.all([
+        conn.promise().execute(totalSql, bindings),
+        conn.promise().execute(sql, bindings),
+      ]);
+
+      const formattedRows = await Promise.all(
+        rows.map((item) => {
+          try {
+            const register_class_calendar =
+              typeof item.register_class_calendar === "string" &&
+              item.register_class_calendar.trim()
+                ? JSON.parse(item.register_class_calendar)
+                : item.register_class_calendar;
+
+            item.register_class_calendar = register_class_calendar;
+
+            item.default_class_session =
+              typeof item.default_class_session === "string" &&
+              item.default_class_session.trim()
+                ? JSON.parse(item.default_class_session)
+                : item.default_class_session;
+          } catch (err) {
+            item.register_class_calendar = [];
+            item.default_class_session = [];
+
+            console.error(
+              `Invalid JSON for register_class_calendar: ${item}`,
+              err
+            );
+          }
+          return item;
+        })
+      );
+
+      return {
+        total: totalResult[0]?.CNT || 0,
+        data: formattedRows || [],
+      };
+    } catch (error) {
+      console.log("Error fetching config from database: " + error.message);
+    }
+  }
+
+  static async isExists(where) {
+    const filteredWhere = await super.where(where);
+
+    const conn = await connection(1);
+    let sql = `
             SELECT id
             FROM ${this.table} 
-            ${filteredWhere.wheres ? ' WHERE ' + filteredWhere.wheres : ''}
+            ${filteredWhere.wheres ? " WHERE " + filteredWhere.wheres : ""}
         `;
 
-        sql += " LIMIT 1";
-        
-        console.log(filteredWhere, sql, "ClassesModel isExists")
-        try {
-            const [results, fields] = await conn.promise().execute(sql, filteredWhere.values);
+    sql += " LIMIT 1";
 
-            return results.length > 0 ? results[0] : {};
-        } catch (error) {
-            console.error('Error executing query:', error);
-            throw error;
-        } finally {
-            // Đóng kết nối sau khi sử dụng
-            await conn.end();
-        }
+    try {
+      const [results, fields] = await conn
+        .promise()
+        .execute(sql, filteredWhere.values);
+
+      return results.length > 0 ? results[0] : {};
+    } catch (error) {
+      console.error("Error executing query:", error);
+      throw error;
+    } finally {
+      await conn.end();
     }
+  }
 
-    static async find(select, where, limit = 1)
-    {
-        const filteredWhere = await super.where(where);
+  static async find(select, where, limit = 1) {
+    const filteredWhere = await super.where(where);
 
-        let sql = `
-            SELECT ${select.join(',')} 
+    let sql = `
+            SELECT ${select.join(",")} 
             FROM ${this.table}
             WHERE ${filteredWhere.wheres}
         `;
 
-        sql += ` LIMIT ${limit}`;
+    sql += ` LIMIT ${limit}`;
 
-        const conn = await connection(1);
-        try {
-            const [[rs]] = await conn.promise().execute(sql, filteredWhere.values);
+    const conn = await connection(1);
+    try {
+      const [[rs]] = await conn.promise().execute(sql, filteredWhere.values);
 
-            return rs ?? {};
-        } catch (error) {
-            console.error('Error executing query:', error);
-            throw error;
-        } finally {
-            // Đóng kết nối sau khi sử dụng
-            await conn.end();
-        }
+      return rs ?? {};
+    } catch (error) {
+      console.error("Error executing query:", error);
+      throw error;
+    } finally {
+      await conn.end();
     }
+  }
 
-    static async get(select, where, limit = 1)
-    {
-        const [filteredWhere, filteredWhereNot, filteredwhereIn] = await Promise.all([
-            super.where(where.where ?? []),
-            super.whereNot(where.whereNot ?? []),
-            super.whereIn(where.whereIn ?? [])
-        ]);
+  static async get(select, where, limit = 1) {
+    const [filteredWhere, filteredWhereNot, filteredwhereIn] =
+      await Promise.all([
+        super.where(where.where ?? []),
+        super.whereNot(where.whereNot ?? []),
+        super.whereIn(where.whereIn ?? []),
+      ]);
 
-        let sql = `
-            SELECT ${select.join(',')} 
+    let sql = `
+            SELECT ${select.join(",")} 
             FROM ${this.table}
             ${
-                // (
-                //      filteredWhere?.wheres ||
-                //      filteredwhereIn?.wheres
-                // ) ? 
-                //      ` WHERE `
-                // : ``
-                // (filteredWhere?.wheres) ? filteredWhere.wheres : ``
-                // (filteredwhereIn?.wheres) ? filteredwhereIn.wheres : ``
-                [filteredWhere?.wheres, filteredWhereNot?.wheres, filteredwhereIn?.wheres]
-                    .filter(Boolean) // Loại bỏ giá trị null hoặc undefined
-                    .join(' AND ') // Nối các điều kiện bằng AND
-                    ? ` WHERE ` + 
-                            [filteredWhere?.wheres, filteredWhereNot?.wheres, filteredwhereIn?.wheres]
-                            .filter(Boolean)
-                            .join(' AND ')
-                    : ''
+              [
+                filteredWhere?.wheres,
+                filteredWhereNot?.wheres,
+                filteredwhereIn?.wheres,
+              ]
+                .filter(Boolean) // Loại bỏ giá trị null hoặc undefined
+                .join(" AND ") // Nối các điều kiện bằng AND
+                ? ` WHERE ` +
+                  [
+                    filteredWhere?.wheres,
+                    filteredWhereNot?.wheres,
+                    filteredwhereIn?.wheres,
+                  ]
+                    .filter(Boolean)
+                    .join(" AND ")
+                : ""
             }
         `;
 
-        if (limit != 'ALL') {
-            sql += ` LIMIT ${limit}`;
-        }
-
-        const bindings = filteredWhere.values.concat(filteredWhereNot.values, filteredwhereIn.values)
-        // console.log(sql, bindings)
-        const conn = await connection(1);
-        try {
-            const [rs] = await conn.promise().execute(sql, bindings);
-
-            return rs ?? [];
-        } catch (error) {
-            console.error('Error executing query:', error);
-            throw error;
-        } finally {
-            // Đóng kết nối sau khi sử dụng
-            await conn.end();
-        }
+    if (limit != "ALL") {
+      sql += ` LIMIT ${limit}`;
     }
 
-    static async create(data) 
-    {
-        data[this.primaryKey] = this.createPrimaryKey(data.name);
-        data.created_at = moment().format('YYYY-MM-DD HH:mm:ss');
-        data.updated_at = moment().format('YYYY-MM-DD HH:mm:ss');
+    const bindings = filteredWhere.values.concat(
+      filteredWhereNot.values,
+      filteredwhereIn.values
+    );
+    const conn = await connection(1);
+    try {
+      const [rs] = await conn.promise().execute(sql, bindings);
 
-        const filteredData = await super.createV2(data);
+      return rs ?? [];
+    } catch (error) {
+      console.error("Error executing query:", error);
+      throw error;
+    } finally {
+      await conn.end();
+    }
+  }
 
-        let columns = filteredData.columns;
+  static async create(data) {
+    data[this.primaryKey] = this.createPrimaryKey(data.name);
+    data.created_at = moment().format("YYYY-MM-DD HH:mm:ss");
+    data.updated_at = moment().format("YYYY-MM-DD HH:mm:ss");
 
-        let updateColumns = columns
-            .filter((column) => {
-                return (column != this.primaryKey && column != 'created_at');
-            })
-            .map(column => `${column} = VALUES(${column})`)
-            .join(', ');
+    const filteredData = await super.createV2(data);
 
-        let sql = `
-            INSERT INTO ${this.table} (${columns.join(', ')})
+    let columns = filteredData.columns;
+
+    let updateColumns = columns
+      .filter((column) => {
+        return column != this.primaryKey && column != "created_at";
+      })
+      .map((column) => `${column} = VALUES(${column})`)
+      .join(", ");
+
+    let sql = `
+            INSERT INTO ${this.table} (${columns.join(", ")})
             VALUES ${filteredData.placeholders}
             ON DUPLICATE KEY UPDATE ${updateColumns}
         `;
 
-        const conn = await connection(1);
-        try {
-            const [result, fields] = await conn.promise().execute(sql, filteredData.values);
-            
-            const [[classes]] = await conn.promise().query(`SELECT id, ${this.primaryKey} FROM ${this.table} WHERE id = ${result.insertId} LIMIT 1`);
+    const conn = await connection(1);
+    try {
+      const [result, fields] = await conn
+        .promise()
+        .execute(sql, filteredData.values);
 
-            return classes ?? {}
-        } catch (error) {
-            console.error('Error inserting data:', error);
-        } finally {
-            await conn.end();
-        }
+      const [[classes]] = await conn
+        .promise()
+        .query(
+          `SELECT id, ${this.primaryKey} FROM ${this.table} WHERE id = ${result.insertId} LIMIT 1`
+        );
+
+      return classes ?? {};
+    } catch (error) {
+      console.error("Error inserting data:", error);
+    } finally {
+      await conn.end();
     }
+  }
 
-    static async update(data, where)
-    {
-        const dataUpdate = {...data}
-        dataUpdate.updated_at = moment().format('YYYY-MM-DD HH:mm:ss');
-        const filteredData = await super.updated(dataUpdate, where)
-        
-        let sql = `
+  static async update(data, where) {
+    const dataUpdate = { ...data };
+    dataUpdate.updated_at = moment().format("YYYY-MM-DD HH:mm:ss");
+    const filteredData = await super.updated(dataUpdate, where);
+
+    let sql = `
             UPDATE ${this.table}
             SET ${filteredData.placeholders}, id = (SELECT @id := id)
-            ${filteredData.wheres ? 'WHERE ' + filteredData.wheres : ''}
+            ${filteredData.wheres ? "WHERE " + filteredData.wheres : ""}
         `;
 
-        const conn = await connection(1);
-        try {
-            await conn.promise().execute('SET @id := 0;');
-            await conn.promise().execute(sql, filteredData.values);
-            const [[{['@id']:id}]] = await conn.promise().execute('SELECT @id;');
-            const [[result]] = await conn.promise().query(`SELECT id, ${this.primaryKey} FROM ${this.table} WHERE id = ${id} LIMIT 1`);
+    const conn = await connection(1);
+    try {
+      await conn.promise().execute("SET @id := 0;");
+      await conn.promise().execute(sql, filteredData.values);
+      const [[{ ["@id"]: id }]] = await conn.promise().execute("SELECT @id;");
+      const [[result]] = await conn
+        .promise()
+        .query(
+          `SELECT id, ${this.primaryKey} FROM ${this.table} WHERE id = ${id} LIMIT 1`
+        );
 
-            return result;
-        } catch (error) {
-            console.error('Error executing query:', error);
-            throw error;
-        } finally {
-            // Đóng kết nối sau khi sử dụng
-            await conn.end(); 
-        }
+      return result;
+    } catch (error) {
+      console.error("Error executing query:", error);
+      throw error;
+    } finally {
+      await conn.end();
     }
+  }
 
-    static async createOnUpdate(data, where) 
-    {
-        const rs = await this.isExists(where);
+  static async createOnUpdate(data, where) {
+    const rs = await this.isExists(where);
 
-        if (rs.id) {
-            return this.update({
-                name: data.name,
-                status: data.status,
-                class_types_id: data.class_types_id
-            }, {
-                id: rs.id
-            });
-        } else {
-            console.log('create');
-            return this.create(data);
+    if (rs.id) {
+      return this.update(
+        {
+          name: data.name,
+          status: data.status,
+          class_types_id: data.class_types_id,
+        },
+        {
+          id: rs.id,
         }
+      );
+    } else {
+      return this.create(data);
     }
+  }
 }
 
 module.exports = { ClassesModel };

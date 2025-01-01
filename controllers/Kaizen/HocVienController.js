@@ -5,16 +5,16 @@ const { RegisterClassStudentModel } = require('../../models/Kaizen/RegisterClass
 const { HocVienValidator } = require('../../validator/Kaizen/HocVienValidator');
 class HocVienController {
 
-    static async getHocVienByClass(req, res) {
+    static async getStudentByClass(req, res) {
         try {
             // Tạo các worker cho từng hàm
-            // const hocVienWorker = runWorker('hocVienWorker.js', 'getHocVienByClass', { filter: {}, page: 1, pageSize: 100 });
+            // const hocVienWorker = runWorker('hocVienWorker.js', 'getStudentByClass', { filter: {}, page: 1, pageSize: 100 });
             // const countWorker = runWorker('hocVienWorker.js', 'getCountHocVienByClass', { filter: {}, page: 1, pageSize: 100 });
 
             // // Thực thi các worker đồng thời
             // const [hoc_vien, total] = await Promise.all([hocVienWorker, countWorker]);
             let request = req.body
-            const [hoc_vien, total] = await Promise.all([StudentModel.getHocVienByClass(request), StudentModel.getCountHocVienByClass(request)]);
+            const [hoc_vien, total] = await Promise.all([StudentModel.getStudentByClass(request), StudentModel.getCountHocVienByClass(request)]);
 
             res.json({
                 error: 0,
@@ -61,7 +61,6 @@ class HocVienController {
         .then(result => {
             res.status(201).json({error:0, message: 'Thành công!'});
         }).catch(error => {
-            console.log('HocVienController xepLop ' + error);
             res.status(500).json({error:1, message: 'Máy chủ bận!'});
         });
 
