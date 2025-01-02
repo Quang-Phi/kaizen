@@ -117,7 +117,6 @@ class DailyCheckinValidator {
           message: `Reason ID is required for student ${item.student_code}`,
         };
       }
-
       const rs = await ConfigModel.find(["id"], {
         id: item.reason_id,
         properties: 32,
@@ -186,6 +185,7 @@ class DailyCheckinValidator {
       family_influence: { properties: 19 },
       medical_history: { properties: 20 },
       is_registered_elsewhere: { properties: 23 },
+      appearance: { properties: 29 },
     };
 
     for (const [field, config] of Object.entries(fieldValidations)) {
@@ -214,7 +214,7 @@ class DailyCheckinValidator {
       "age",
       "desired_major",
       "physical_condition",
-      "tatoo",
+      "tattoo",
       "expected_graduation_year",
       "military_requirement",
       "note",
@@ -253,21 +253,39 @@ class DailyCheckinValidator {
     };
   }
 
+  static validateMinMax(data) {
+    if (!data || Object.keys(data).length === 0) {
+      return {
+        code: 1,
+        message: "Data is required",
+      };
+    }
+    if (Object.keys(data).length > 20) {
+      return {
+        code: 1,
+        message: "Maximum data length is 20",
+      };
+    }
+
+    return {
+      code: 0,
+      message: "Data validation passed",
+    };
+  }
+
   static async create(data) {
     try {
-      if (!data || Object.keys(data).length === 0) {
-        return {
-          code: 1,
-          message: "Data is required",
-        };
+      const x = this.validateMinMax(data);
+      if (x.code !== 0) {
+        return x;
       }
 
       for (const key of Object.keys(data)) {
         const student = data[key];
 
-        const v = await this.validateBasicData(student, key);
-        if (v.code !== 0) {
-          return v;
+        const y = await this.validateBasicData(student, key);
+        if (y.code !== 0) {
+          return y;
         }
 
         if (!student.created_by) {
@@ -289,9 +307,9 @@ class DailyCheckinValidator {
         }
 
         for (const item of student.check_in) {
-          const v = await this.validateCheckInData(item, key);
-          if (v.code !== 0) {
-            return v;
+          const z = await this.validateCheckInData(item, key);
+          if (z.code !== 0) {
+            return z;
           }
         }
       }
@@ -311,14 +329,14 @@ class DailyCheckinValidator {
 
   static async validateGetListStudentCheckinByClass(data) {
     try {
-      const v = await this.validateBasicData(data);
-      if (v.code !== 0) {
-        return v;
+      const x = await this.validateBasicData(data);
+      if (x.code !== 0) {
+        return x;
       }
 
-      const k = this.validatClassSession(data);
-      if (k.code !== 0) {
-        return k;
+      const y = this.validatClassSession(data);
+      if (y.code !== 0) {
+        return y;
       }
 
       return {
@@ -371,19 +389,17 @@ class DailyCheckinValidator {
 
   static async evaluation(data) {
     try {
-      if (!data || Object.keys(data).length === 0) {
-        return {
-          code: 1,
-          message: "Data is required",
-        };
+      const x = this.validateMinMax(data);
+      if (x.code !== 0) {
+        return x;
       }
 
       for (const key of Object.keys(data)) {
         const student = data[key];
 
-        const v = await this.validateBasicData(student, key);
-        if (v.code !== 0) {
-          return v;
+        const y = await this.validateBasicData(student, key);
+        if (y.code !== 0) {
+          return y;
         }
 
         if (!student.created_by) {
@@ -394,9 +410,9 @@ class DailyCheckinValidator {
         }
 
         for (const item of student.evaluation) {
-          const v = await this.validateEvaluationData(item, key);
-          if (v.code !== 0) {
-            return v;
+          const z = await this.validateEvaluationData(item, key);
+          if (z.code !== 0) {
+            return z;
           }
         }
       }
@@ -416,9 +432,9 @@ class DailyCheckinValidator {
 
   static async getStudentEvaluation(data) {
     try {
-      const v = await this.validateBasicData(data);
-      if (v.code !== 0) {
-        return v;
+      const x = await this.validateBasicData(data);
+      if (x.code !== 0) {
+        return x;
       }
 
       if (
@@ -443,16 +459,22 @@ class DailyCheckinValidator {
         };
       }
 
-      const k = this.validatClassSession(data);
-      if (k.code !== 0) {
-        return k;
+      const y = this.validatClassSession(data);
+      if (y.code !== 0) {
+        return y;
       }
 
       return {
         code: 0,
         message: "Validation passed",
       };
-    } catch (error) {}
+    } catch (error) {
+      console.error("Validation error:", error);
+      return {
+        code: 1,
+        message: "Internal validation error",
+      };
+    }
   }
 }
 

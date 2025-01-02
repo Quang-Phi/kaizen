@@ -26,6 +26,7 @@ class EvaluationOtherOptionModel extends Model {
       await conn.promise().commit();
       return results;
     } catch (error) {
+      console.error("Transaction Error:", error);
       await conn.promise().rollback();
       throw error;
     } finally {

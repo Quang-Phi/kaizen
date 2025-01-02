@@ -2,12 +2,11 @@ const { connection } = require("../../config/database");
 const { Model } = require("../Model");
 const moment = require("moment");
 
-class DailyCheckinModel extends Model {
-  static table = "daily_checkin";
+class AdmissionCheckinModel extends Model {
+  static table = "admission_checkin";
   static primaryKey = "id";
   static fillable = [
     "id",
-    "day",
     "class_code",
     "created_by",
     "updated_by",
@@ -88,13 +87,7 @@ class DailyCheckinModel extends Model {
     }
   }
 
-  static async getListStudentCheckin(
-    class_code,
-    day,
-    student_codes,
-    class_session
-  ) {
-    day = moment(day).format("YYYY-MM-DD");
+  static async getListStudentAdmission(class_code, student_codes) {
     const conn = await connection(1);
     try {
       const [response] = await conn.promise().query(
@@ -102,18 +95,15 @@ class DailyCheckinModel extends Model {
           c.first_name,
           c.last_name,
           b.student_code,
-          b.reason_id, 
           b.comment, 
-          b.class_session, 
+          b.late_admission_date, 
           b.type_checkin_id 
         FROM ${this.table} AS a 
-        LEFT JOIN dim_daily_checkin as b ON b.id_daily_checkin = a.id 
+        LEFT JOIN dim_admission_checkin as b ON b.id_daily_checkin = a.id 
         LEFT JOIN teachers as c ON c.id = b.updated_by
         WHERE a.class_code = ? 
-        AND a.day = ?
-        AND b.student_code IN (?) 
-        AND b.class_session = ?`,
-        [class_code, day, student_codes, class_session[0]]
+        AND b.student_code IN (?)`,
+        [class_code, student_codes]
       );
 
       const checkinMap = {};
@@ -121,8 +111,8 @@ class DailyCheckinModel extends Model {
         checkinMap[record.student_code] = {
           created_by: record.last_name + " " + record.first_name,
           reason_id: record.reason_id,
+          late_admission_date: record.late_admission_date,
           comment: record.comment,
-          class_session: class_session,
           type_checkin_id: record.type_checkin_id,
         };
       });
@@ -181,4 +171,4 @@ class DailyCheckinModel extends Model {
   }
 }
 
-module.exports = { DailyCheckinModel };
+module.exports = { AdmissionCheckinModel };

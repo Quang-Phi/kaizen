@@ -12,6 +12,8 @@ class DimDailyCheckinModel extends Model {
     "class_code",
     "reason_id",
     "comment",
+    "created_by",
+    "updated_by",
     "created_at",
     "updated_at",
   ];
@@ -42,6 +44,7 @@ class DimDailyCheckinModel extends Model {
       await conn.promise().commit();
       return results;
     } catch (error) {
+      console.error("Transaction Error:", error);
       await conn.promise().rollback();
       throw error;
     } finally {

@@ -7,8 +7,6 @@ const PTNCoursesLessonLessonGroupController = require("../../controllers/Kaizen/
 const PTNCoursesPointTypesController = require("../../controllers/Kaizen/PTN/CoursesPointTypesController");
 const ConfigController = require("../../controllers/Kaizen/ConfigController");
 const StudentController = require("../../controllers/Kaizen/StudentController");
-const DiemDanhNhapHocController = require("../../controllers/Kaizen/DiemDanhNhapHocController");
-const DiemDanhHangNgayController = require("../../controllers/Kaizen/DiemDanhHangNgayController");
 const CoursesController = require("../../controllers/Kaizen/CoursesController");
 const AreaController = require("../../controllers/Kaizen/AreaController");
 const BranchesController = require("../../controllers/Kaizen/BranchesController");
@@ -19,7 +17,7 @@ const TeachersController = require("../../controllers/Kaizen/TeachersController"
 const HocVienController = require("../../controllers/Kaizen/HocVienController");
 const ProgramController = require("../../controllers/Kaizen/ProgramController");
 const DailyCheckinController = require("../../controllers/Kaizen/DailyCheckinController");
-
+const AdmissionCheckinController = require("../../controllers/Kaizen/AdmissionCheckinController");
 // Define API routes
 router.get("/config.get", ConfigController.getAllConfig);
 router.get("/courses", CoursesController.get);
@@ -60,22 +58,10 @@ router.get("/khaigiang.get", HocVienController.getHocVienKhaiGiang);
 router.post("/class.student.arrange", StudentController.arrange);
 
 // Lấy danh sách điểm danh nhập học
-router.get("/diem-danh-nhap-hoc/get-list", DiemDanhNhapHocController.getList);
+// router.get("/diem-danh-nhap-hoc/get-list", DiemDanhNhapHocController.getList);
+// router.post("/diem-danh-nhap-hoc/update", DiemDanhNhapHocController.update);
 
-router.post("/rollcall.add", DiemDanhNhapHocController.create);
-
-router.post("/diem-danh-nhap-hoc/update", DiemDanhNhapHocController.update);
-// Lấy danh sách điểm danh hằng ngày
-router.get("/rollcall.daily.get", DiemDanhHangNgayController.getList);
-router.get("/rollcall.get", DiemDanhHangNgayController.getList);
-
-// Tạo điểm danh hằng ngày
-router.post("/rollcall.daily.add", DiemDanhHangNgayController.create);
 router.get("/program", ProgramController.getList);
-// router.post('/', userController.createUser);
-// router.get('/:id', userController.getUserById);
-// router.put('/:id', userController.updateUser);
-// router.delete('/:id', userController.deleteUser);
 
 router.post("/daily-checkin", DailyCheckinController.create); // điểm danh hằng ngày
 router.get(
@@ -87,6 +73,14 @@ router.get(
   "/daily-checkin/:code/evaluation/",
   DailyCheckinController.getStudentEvaluation
 ); //đánh giá của học viên theo lớp
+
+router.post("/admission-checkin/create", AdmissionCheckinController.create); // điểm danh nhập học
+router.put("/admission-checkin/update", AdmissionCheckinController.update); // điểm danh nhập học
+
+router.get(
+  "/admission-checkin/get-list",
+  AdmissionCheckinController.getListStudentAdmissionByClass
+); //danh sách học viên theo lớp kèm điểm danh nhập học
 
 // PTN
 router.get("/ptn/courses", PTNCoursesController.getList);

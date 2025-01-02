@@ -8,7 +8,6 @@ const {
 const moment = require("moment");
 
 class DailyCheckinService {
-
   static getCurrentTime() {
     return moment().utcOffset("+07:00").format("YYYY-MM-DD HH:mm:ss");
   }
@@ -24,6 +23,7 @@ class DailyCheckinService {
         class_code: item.class_code,
         day: moment(item.day).format("YYYY-MM-DD"),
         created_by: item.created_by,
+        updated_by: item.created_by,
         created_at: currentTime,
         updated_at: currentTime,
       };
@@ -37,8 +37,8 @@ class DailyCheckinService {
         updateItems.push({
           ...dailyCheckinItem,
           id: existingRecord.id,
-          updated_by: item.created_by,
           created_by: existingRecord.created_by,
+          updated_by: item.created_by,
         });
       } else {
         createItems.push(dailyCheckinItem);
@@ -47,14 +47,14 @@ class DailyCheckinService {
 
     const results = [];
     if (createItems.length > 0) {
-      const createdResults = await DailyCheckinModel.create(createItems);
+      const createdResults = await DailyCheckinModel.create(this.uniqueMainInsertData(createItems));
       results.push(
         ...createdResults.map((item) => ({ ...item, isUpdated: false }))
       );
     }
 
     if (updateItems.length > 0) {
-      const updatedResults = await DailyCheckinModel.update(updateItems);
+      const updatedResults = await DailyCheckinModel.update(this.uniqueMainInsertData(updateItems));
       results.push(
         ...updatedResults.map((item) => ({ ...item, isUpdated: true }))
       );
@@ -63,7 +63,20 @@ class DailyCheckinService {
     return results;
   }
 
-  static processDimData(payload, results, dataKey, type = "main", result2) {
+  static uniqueMainInsertData(data) {
+    return data.reduce((acc, current) => {
+      const found = acc.find(
+        (item) =>
+          item.class_code === current.class_code && item.day === current.day
+      );
+      if (!found) {
+        acc.push(current);
+      }
+      return acc;
+    }, []);
+  }
+
+  static processDimData(payload, results, dataKey, type = "main", res = []) {
     const createData = [];
     const updateData = [];
     const currentTime = this.getCurrentTime();
@@ -82,38 +95,44 @@ class DailyCheckinService {
         item[dataKey].forEach((dataItem, index) => {
           let dimData = [];
           let {
-            family_influence_orther,
-            japanese_language_need_orther,
+            family_influence_other,
+            japanese_language_need_other,
             ...rest
           } = dataItem;
 
           if (type === "other") {
-            const correspondingResult = result2[index];
+            let i = res.find(
+              (r) =>
+                r.class_session === dataItem.class_session &&
+                r.student_code === dataItem.student_code
+            );
+            dimData.push({
+              text:
+                family_influence_other && i.family_influence === 83
+                  ? family_influence_other
+                  : null,
+              orther_id: 83,
+              daily_checkin_evaluation_id: i.id,
+              created_at: currentTime,
+              updated_at: currentTime,
+            });
 
-            if (correspondingResult) {
-              if (family_influence_orther) {
-                dimData.push({
-                  text: family_influence_orther,
-                  orther_id: correspondingResult.family_influence,
-                  daily_checkin_evaluation_id: correspondingResult.id,
-                  created_at: currentTime,
-                  updated_at: currentTime,
-                });
-              }
-              if (japanese_language_need_orther) {
-                dimData.push({
-                  text: japanese_language_need_orther,
-                  orther_id: correspondingResult.japanese_language_need,
-                  daily_checkin_evaluation_id: correspondingResult.id,
-                  created_at: currentTime,
-                  updated_at: currentTime,
-                });
-              }
-            }
+            dimData.push({
+              text:
+                japanese_language_need_other && i.japanese_language_need === 59
+                  ? japanese_language_need_other
+                  : null,
+              orther_id: 59,
+              daily_checkin_evaluation_id: i.id,
+              created_at: currentTime,
+              updated_at: currentTime,
+            });
           } else {
             dimData = {
               ...rest,
               id_daily_checkin: resultItem.id,
+              created_by: resultItem.created_by,
+              updated_by: resultItem.updated_by,
               created_at: currentTime,
               updated_at: currentTime,
             };
@@ -182,6 +201,7 @@ class DailyCheckinService {
 
       const flattenCreateData = ortherCreateData.flat();
       const flattenUpdateData = ortherUpdateData.flat();
+
       if (flattenCreateData.length > 0 || flattenUpdateData.length > 0) {
         await this.handleDimData(
           flattenCreateData,

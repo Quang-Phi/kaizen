@@ -1,30 +1,15 @@
 const { connection } = require("../../config/database");
 const { Model } = require("../Model");
 
-class DimDailyEvaluationModel extends Model {
-  static table = "dim_daily_evaluation";
-  static primaryKey = "id_daily_checkin";
+class DimAdmissionCheckinModel extends Model {
+  static table = "dim_admission_checkin";
+  static primaryKey = "id";
   static fillable = [
+    "id",
     "id_daily_checkin",
     "student_code",
-    "attendance",
-    "learning_attitude",
-    "physical_appearance",
-    "consciousness_personality",
-    "japanese_learning_ability",
-    "mental_health",
-    "age",
-    "disability",
-    "desired_major",
-    "family_influence",
-    "physical_condition",
-    "tatoo",
-    "japanese_language_need",
-    "expected_graduation_year",
-    "medical_history",
-    "is_registered_elsewhere",
-    "military_requirement",
-    "note",
+    "comment",
+    "type_checkin_id",
     "created_by",
     "updated_by",
     "created_at",
@@ -38,15 +23,14 @@ class DimDailyEvaluationModel extends Model {
     try {
       const results = [];
       for (const item of data) {
-        let { japanese_language_need_other, family_influence_other, ...evaluationData } = item;
         try {
           const [result] = await conn
             .promise()
-            .query(`INSERT INTO ${this.table} SET ?`, evaluationData);
+            .query(`INSERT INTO ${this.table} SET ?`, item);
 
           results.push({
-            id_daily_checkin: result.insertId,
-            ...evaluationData,
+            id: result.insertId,
+            ...item,
           });
         } catch (sqlError) {
           console.error("SQL Error:", sqlError);
@@ -75,8 +59,8 @@ class DimDailyEvaluationModel extends Model {
       for (const item of data) {
         const [existing] = await conn.promise().query(
           `SELECT id FROM ${this.table} 
-             WHERE id_daily_checkin = ? AND student_code = ? AND class_session = ?`,
-          [item.id_daily_checkin, item.student_code, item.class_session]
+             WHERE id_daily_checkin = ? AND student_code = ?`,
+          [item.id_daily_checkin, item.student_code]
         );
 
         if (existing && existing[0]) {
@@ -116,4 +100,4 @@ class DimDailyEvaluationModel extends Model {
   }
 }
 
-module.exports = { DimDailyEvaluationModel };
+module.exports = { DimAdmissionCheckinModel };
