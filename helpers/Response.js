@@ -23,13 +23,7 @@ class Response {
         });
 
       case "Updated":
-        return res.status(HttpStatus.UPDATED).json({
-          error: 0,
-          message: HttpMessage.UPDATED,
-          code: ResponseCode.UPDATED,
-          data,
-          metadata,
-        });
+        return res.status(HttpStatus.UPDATED).send();
 
       case "Deleted":
         return res.status(HttpStatus.SUCCESS).json({

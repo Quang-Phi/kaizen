@@ -161,9 +161,9 @@ class Model {
     const filteredData = data.map((item) => {
       return Object.keys(item).reduce((acc, key) => {
         if (
-          (this.fillable.includes(key) && typeof data[key] !== "undefined") ||
+          (this.fillable.includes(key) && typeof item[key] !== "undefined") ||
           (this.primaryKey === key &&
-            typeof data[this.primaryKey] !== "undefined")
+            typeof item[this.primaryKey] !== "undefined")
         ) {
           acc[key] = item[key];
         }

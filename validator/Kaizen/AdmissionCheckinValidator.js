@@ -1,52 +1,26 @@
-const moment = require("moment");
-const { StudentModel } = require("../../models/Kaizen/StudentModel");
-const { ClassesModel } = require("../../models/Kaizen/ClassesModel");
+const { Validator } = require("./Validator");
 const { ConfigModel } = require("../../models/Kaizen/ConfigModel");
 
-class AdmissionCheckinValidator {
-  static async validateBasicData(data, key = "") {
-    if (!data) {
-      return {
-        code: 1,
-        message: "Data is required",
-      };
-    }
+class AdmissionCheckinValidator extends Validator {
+  static ALLOWED_CREATE_MAIN_FIELDS = ["class_code", "created_by", "check_in"];
+  static ALLOWED_CREATE_CHECKIN_FIELDS = [
+    "type_checkin_id",
+    "student_code",
+    "late_admission_date",
+    "comment",
+  ];
 
-    if (key && Object.keys(data).length === 0) {
-      return {
-        code: 1,
-        message: "Data is required",
-      };
-    }
-
-    if (
-      !data.class_code ||
-      (typeof data.class_code !== "string" && data.class_code.trim() === "")
-    ) {
-      return {
-        code: 1,
-        message: `Class code is required ${key ? "for item " + key : ""}`,
-      };
-    }
-
-    const cls = await ClassesModel.find(["id"], {
-      code: data.class_code,
-    });
-
-    if (!cls || !cls.id) {
-      return {
-        code: 1,
-        message: "Class not exist!",
-      };
-    }
-
-    return {
-      code: 0,
-      message: "Basic validation passed",
-    };
-  }
+  static ALLOWED_GET_LIST_FIELDS = ["class_code"];
 
   static async validateCheckInData(item, key) {
+    const extraFieldCheck = this.checkExtraFields(
+      item,
+      this.ALLOWED_CREATE_CHECKIN_FIELDS
+    );
+    if (extraFieldCheck.code !== 0) {
+      return extraFieldCheck;
+    }
+
     if (!item.type_checkin_id) {
       return {
         code: 1,
@@ -55,24 +29,18 @@ class AdmissionCheckinValidator {
     }
 
     if (item.type_checkin_id == 9) {
-      if (
-        !item.late_admission_date ||
-        (typeof item.late_admission_date !== "string" && item.late_admission_date.trim() === "")
-      ) {
+      if (!item.late_admission_date || item.late_admission_date.trim() === "") {
         return {
           code: 1,
-          message: `Late admission date is required ${key ? "for student " + key : ""}`,
+          message: `Late admission date is required for student ${key}`,
         };
       }
 
-      if (!moment(item.late_admission_date, "YYYY-MM-DD").isValid()) {
-        return {
-          code: 1,
-          message: `Invalid date format ${
-            key ? "for item " + key : ""
-          }. Required format: YYYY-MM-DD`,
-        };
-      }
+      const dateCheck = this.validateDateFormat(
+        item.late_admission_date,
+        "Late admission date"
+      );
+      if (dateCheck.code !== 0) return dateCheck;
     }
 
     const type = await ConfigModel.find(["id"], {
@@ -87,65 +55,39 @@ class AdmissionCheckinValidator {
       };
     }
 
-    if (
-      !item.student_code ||
-      (typeof item.student_code !== "string" && item.student_code.trim() === "")
-    ) {
-      return {
-        code: 1,
-        message: `Student code is required for item ${key}`,
-      };
+    const studentCheck = await this.validateStudentExists(
+      item.student_code,
+      key
+    );
+    if (studentCheck.code !== 0) return studentCheck;
+
+    if (item.comment !== undefined) {
+      const commentCheck = this.validateStringField(item.comment, "Comment");
+      if (commentCheck.code !== 0) return commentCheck;
     }
 
-    const std = await StudentModel.find(["id"], {
-      code: item.student_code,
-    });
-
-    if (!std || !std.id) {
-      return {
-        code: 1,
-        message: `Student not exist for item ${key}`,
-      };
-    }
     return {
       code: 0,
       message: "Check-in validation passed",
     };
   }
 
-  static validateMinMax(data) {
-    if (!data || Object.keys(data).length === 0) {
-      return {
-        code: 1,
-        message: "Data is required",
-      };
-    }
-    if (Object.keys(data).length > 20) {
-      return {
-        code: 1,
-        message: "Maximum data length is 20",
-      };
-    }
-
-    return {
-      code: 0,
-      message: "Data validation passed",
-    };
-  }
-
   static async create(data) {
     try {
-      const x = this.validateMinMax(data);
-      if (x.code !== 0) {
-        return x;
-      }
+      const minMaxCheck = this.validateMinMax(data);
+      if (minMaxCheck.code !== 0) return minMaxCheck;
 
       for (const key of Object.keys(data)) {
         const student = data[key];
-        const x = await this.validateBasicData(student, key);
-        if (x.code !== 0) {
-          return x;
-        }
+
+        const extraFieldCheck = this.checkExtraFields(
+          student,
+          this.ALLOWED_CREATE_MAIN_FIELDS
+        );
+        if (extraFieldCheck.code !== 0) return extraFieldCheck;
+
+        const basicCheck = await this.validateBasicData(student, key);
+        if (basicCheck.code !== 0) return basicCheck;
 
         if (!student.created_by) {
           return {
@@ -166,10 +108,8 @@ class AdmissionCheckinValidator {
         }
 
         for (const item of student.check_in) {
-          const z = await this.validateCheckInData(item, key);
-          if (z.code !== 0) {
-            return z;
-          }
+          const checkInCheck = await this.validateCheckInData(item, key);
+          if (checkInCheck.code !== 0) return checkInCheck;
         }
       }
 
@@ -188,10 +128,15 @@ class AdmissionCheckinValidator {
 
   static async validateGetListStudentAdmissionByClass(data) {
     try {
-      const x = await this.validateBasicData(data);
-      if (x.code !== 0) {
-        return x;
-      }
+      const extraFieldCheck = this.checkExtraFields(
+        data,
+        this.ALLOWED_GET_LIST_FIELDS
+      );
+
+      if (extraFieldCheck.code !== 0) return extraFieldCheck;
+
+      const basicCheck = await this.validateBasicData(data);
+      if (basicCheck.code !== 0) return basicCheck;
 
       return {
         code: 0,

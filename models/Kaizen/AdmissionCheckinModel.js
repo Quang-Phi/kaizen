@@ -19,17 +19,19 @@ class AdmissionCheckinModel extends Model {
     await conn.promise().beginTransaction();
 
     try {
-      const results = [];
-      for (const item of items) {
-        const [result] = await conn
-          .promise()
-          .query(`INSERT INTO ${this.table} SET ?`, item);
+      const query = await this.createMultiple(items);
+      const [result] = await conn
+        .promise()
+        .query(
+          `INSERT INTO ${this.table} (${query.columns}) VALUES ${query.placeholders}`,
+          query.values
+        );
 
-        results.push({
-          id: result.insertId,
-          ...item,
-        });
-      }
+      const results = items.map((item, index) => ({
+        id: result.insertId + index,
+        ...item,
+      }));
+
       await conn.promise().commit();
       return results;
     } catch (error) {
@@ -49,12 +51,18 @@ class AdmissionCheckinModel extends Model {
       const results = [];
       for (const item of items) {
         const { id, created_at, ...updateData } = item;
+
+        const query = await this.updated(updateData, { id });
         await conn
           .promise()
-          .query(`UPDATE ${this.table} SET ? WHERE id = ?`, [updateData, id]);
+          .query(
+            `UPDATE ${this.table} SET ${query.placeholders} WHERE ${query.wheres}`,
+            query.values
+          );
 
         results.push(item);
       }
+
       await conn.promise().commit();
       return results;
     } catch (error) {
@@ -69,15 +77,14 @@ class AdmissionCheckinModel extends Model {
   static async findOne(conditions) {
     const conn = await connection(1);
     try {
-      let query = `SELECT * FROM ${this.table} WHERE 1=1`;
-      const values = [];
+      const query = await this.where(conditions);
+      const [rows] = await conn
+        .promise()
+        .query(
+          `SELECT * FROM ${this.table} WHERE ${query.wheres}`,
+          query.values
+        );
 
-      Object.entries(conditions).forEach(([key, value]) => {
-        query += ` AND ${key} = ?`;
-        values.push(value);
-      });
-
-      const [rows] = await conn.promise().query(query, values);
       return rows[0] || null;
     } catch (error) {
       console.error("Transaction Error:", error);

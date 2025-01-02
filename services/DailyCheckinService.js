@@ -47,14 +47,18 @@ class DailyCheckinService {
 
     const results = [];
     if (createItems.length > 0) {
-      const createdResults = await DailyCheckinModel.create(this.uniqueMainInsertData(createItems));
+      const createdResults = await DailyCheckinModel.create(
+        this.uniqueMainInsertData(createItems)
+      );
       results.push(
         ...createdResults.map((item) => ({ ...item, isUpdated: false }))
       );
     }
 
     if (updateItems.length > 0) {
-      const updatedResults = await DailyCheckinModel.update(this.uniqueMainInsertData(updateItems));
+      const updatedResults = await DailyCheckinModel.update(
+        this.uniqueMainInsertData(updateItems)
+      );
       results.push(
         ...updatedResults.map((item) => ({ ...item, isUpdated: true }))
       );

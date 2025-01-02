@@ -8,8 +8,9 @@ class DimAdmissionCheckinModel extends Model {
     "id",
     "id_daily_checkin",
     "student_code",
-    "comment",
     "type_checkin_id",
+    "late_admission_date",
+    "comment",
     "created_by",
     "updated_by",
     "created_at",
@@ -21,23 +22,18 @@ class DimAdmissionCheckinModel extends Model {
     await conn.promise().beginTransaction();
 
     try {
-      const results = [];
-      for (const item of data) {
-        try {
-          const [result] = await conn
-            .promise()
-            .query(`INSERT INTO ${this.table} SET ?`, item);
+      const query = await this.createMultiple(data);
+      const [result] = await conn
+        .promise()
+        .query(
+          `INSERT INTO ${this.table} (${query.columns}) VALUES ${query.placeholders}`,
+          query.values
+        );
 
-          results.push({
-            id: result.insertId,
-            ...item,
-          });
-        } catch (sqlError) {
-          console.error("SQL Error:", sqlError);
-          await conn.promise().rollback();
-          throw sqlError;
-        }
-      }
+      const results = data.map((item, index) => ({
+        id: result.insertId + index,
+        ...item,
+      }));
 
       await conn.promise().commit();
       return results;
@@ -57,29 +53,43 @@ class DimAdmissionCheckinModel extends Model {
     try {
       const results = [];
       for (const item of data) {
-        const [existing] = await conn.promise().query(
-          `SELECT id FROM ${this.table} 
-             WHERE id_daily_checkin = ? AND student_code = ?`,
-          [item.id_daily_checkin, item.student_code]
-        );
+        const whereQuery = await this.where({
+          id_daily_checkin: item.id_daily_checkin,
+          student_code: item.student_code,
+        });
+
+        const [existing] = await conn
+          .promise()
+          .query(
+            `SELECT id FROM ${this.table} WHERE ${whereQuery.wheres}`,
+            whereQuery.values
+          );
 
         if (existing && existing[0]) {
           const { id, created_at, ...updateData } = item;
+
+          const updateQuery = await this.updated(updateData, {
+            id: existing[0].id,
+          });
           await conn
             .promise()
-            .query(`UPDATE ${this.table} SET ? WHERE id = ?`, [
-              updateData,
-              existing[0].id,
-            ]);
+            .query(
+              `UPDATE ${this.table} SET ${updateQuery.placeholders} WHERE ${updateQuery.wheres}`,
+              updateQuery.values
+            );
 
           results.push({
             id: existing[0].id,
             ...item,
           });
         } else {
+          const insertQuery = await this.create(item);
           const [result] = await conn
             .promise()
-            .query(`INSERT INTO ${this.table} SET ?`, item);
+            .query(
+              `INSERT INTO ${this.table} (${insertQuery.columns}) VALUES ${insertQuery.placeholders}`,
+              insertQuery.values
+            );
 
           results.push({
             id: result.insertId,
@@ -93,6 +103,30 @@ class DimAdmissionCheckinModel extends Model {
     } catch (error) {
       console.error("Transaction Error:", error);
       await conn.promise().rollback();
+      throw error;
+    } finally {
+      await conn.end();
+    }
+  }
+
+  static async findByCheckinAndStudent(id_daily_checkin, student_code) {
+    const conn = await connection(1);
+    try {
+      const query = await this.where({
+        id_daily_checkin,
+        student_code,
+      });
+
+      const [rows] = await conn
+        .promise()
+        .query(
+          `SELECT * FROM ${this.table} WHERE ${query.wheres}`,
+          query.values
+        );
+
+      return rows[0] || null;
+    } catch (error) {
+      console.error("Query Error:", error);
       throw error;
     } finally {
       await conn.end();

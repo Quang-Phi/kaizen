@@ -3,10 +3,12 @@ const { Model } = require("../Model");
 
 class DimDailyEvaluationModel extends Model {
   static table = "dim_daily_evaluation";
-  static primaryKey = "id_daily_checkin";
+  static primaryKey = "id";
   static fillable = [
+    "id",
     "id_daily_checkin",
     "student_code",
+    "class_session",
     "attendance",
     "learning_attitude",
     "physical_appearance",
@@ -15,10 +17,11 @@ class DimDailyEvaluationModel extends Model {
     "mental_health",
     "age",
     "disability",
+    "appearance",
     "desired_major",
     "family_influence",
     "physical_condition",
-    "tatoo",
+    "tattoo",
     "japanese_language_need",
     "expected_graduation_year",
     "medical_history",
@@ -36,24 +39,18 @@ class DimDailyEvaluationModel extends Model {
     await conn.promise().beginTransaction();
 
     try {
-      const results = [];
-      for (const item of data) {
-        let { japanese_language_need_other, family_influence_other, ...evaluationData } = item;
-        try {
-          const [result] = await conn
-            .promise()
-            .query(`INSERT INTO ${this.table} SET ?`, evaluationData);
+      const query = await this.createMultiple(data);
+      const [result] = await conn
+        .promise()
+        .query(
+          `INSERT INTO ${this.table} (${query.columns}) VALUES ${query.placeholders}`,
+          query.values
+        );
 
-          results.push({
-            id_daily_checkin: result.insertId,
-            ...evaluationData,
-          });
-        } catch (sqlError) {
-          console.error("SQL Error:", sqlError);
-          await conn.promise().rollback();
-          throw sqlError;
-        }
-      }
+      const results = data.map((item, index) => ({
+        id: result.insertId + index,
+        ...item,
+      }));
 
       await conn.promise().commit();
       return results;

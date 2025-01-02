@@ -7,10 +7,10 @@ class DimDailyCheckinModel extends Model {
   static fillable = [
     "id",
     "id_daily_checkin",
+    "student_code",
     "class_session",
-    "type_checkin_id",
-    "class_code",
     "reason_id",
+    "type_checkin_id",
     "comment",
     "created_by",
     "updated_by",
@@ -23,23 +23,18 @@ class DimDailyCheckinModel extends Model {
     await conn.promise().beginTransaction();
 
     try {
-      const results = [];
-      for (const item of data) {
-        try {
-          const [result] = await conn
-            .promise()
-            .query(`INSERT INTO ${this.table} SET ?`, item);
+      const query = await this.createMultiple(data);
+      const [result] = await conn
+        .promise()
+        .query(
+          `INSERT INTO ${this.table} (${query.columns}) VALUES ${query.placeholders}`,
+          query.values
+        );
 
-          results.push({
-            id: result.insertId,
-            ...item,
-          });
-        } catch (sqlError) {
-          console.error("SQL Error:", sqlError);
-          await conn.promise().rollback();
-          throw sqlError;
-        }
-      }
+      const results = data.map((item, index) => ({
+        id: result.insertId + index,
+        ...item,
+      }));
 
       await conn.promise().commit();
       return results;
@@ -59,20 +54,26 @@ class DimDailyCheckinModel extends Model {
     try {
       const results = [];
       for (const item of data) {
+        const whereQuery = await this.where({
+          id_daily_checkin: item.id_daily_checkin,
+          student_code: item.student_code,
+          class_session: item.class_session
+        });
+
         const [existing] = await conn.promise().query(
-          `SELECT id FROM ${this.table} 
-             WHERE id_daily_checkin = ? AND student_code = ? AND class_session = ?`,
-          [item.id_daily_checkin, item.student_code, item.class_session]
+          `SELECT id FROM ${this.table} WHERE ${whereQuery.wheres}`,
+          whereQuery.values
         );
 
         if (existing && existing[0]) {
           const { id, created_at, ...updateData } = item;
+          const updateQuery = await this.updated(updateData, { id: existing[0].id });
           await conn
             .promise()
-            .query(`UPDATE ${this.table} SET ? WHERE id = ?`, [
-              updateData,
-              existing[0].id,
-            ]);
+            .query(
+              `UPDATE ${this.table} SET ${updateQuery.placeholders} WHERE ${updateQuery.wheres}`,
+              updateQuery.values
+            );
 
           results.push({
             id: existing[0].id,

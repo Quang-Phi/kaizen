@@ -1,60 +1,75 @@
-const moment = require("moment");
-const { StudentModel } = require("../../models/Kaizen/StudentModel");
-const { ClassesModel } = require("../../models/Kaizen/ClassesModel");
+const { Validator } = require("./Validator");
 const { ConfigModel } = require("../../models/Kaizen/ConfigModel");
 
-class DailyCheckinValidator {
+class DailyCheckinValidator extends Validator {
+  static ALLOWED_CREATE_MAIN_FIELDS = [
+    "class_code",
+    "day",
+    "created_by",
+    "check_in",
+  ];
+  static ALLOWED_CREATE_CHECKIN_FIELDS = [
+    "class_session",
+    "type_checkin_id",
+    "student_code",
+    "reason_id",
+    "comment",
+  ];
+
+  static ALLOWED_GET_LIST_FIELDS = ["class_code", "day", "class_session"];
+
+  static ALLOWED_EVALUATION_MAIN_FIELDS = [
+    "class_code",
+    "day",
+    "created_by",
+    "evaluation",
+  ];
+  static ALLOWED_EVALUATION_DETAIL_FIELDS = [
+    "class_session",
+    "student_code",
+    "attendance",
+    "learning_attitude",
+    "appearance",
+    "physical_appearance",
+    "consciousness_personality",
+    "japanese_learning_ability",
+    "mental_health",
+    "age",
+    "disability",
+    "desired_major",
+    "family_influence",
+    "physical_condition",
+    "tattoo",
+    "japanese_language_need",
+    "expected_graduation_year",
+    "medical_history",
+    "is_registered_elsewhere",
+    "military_requirement",
+    "note",
+    "japanese_language_need_other",
+    "family_influence_other",
+  ];
+
+  static ALLOWED_GET_STUDENT_EVALUATION_FIELDS = [
+    "class_code",
+    "day",
+    "class_session",
+    "student_code",
+  ];
+
   static async validateBasicData(data, key = "") {
-    if (!data) {
-      return {
-        code: 1,
-        message: "Data is required",
-      };
-    }
+    const baseCheck = await super.validateBasicData(data, key);
+    if (baseCheck.code !== 0) return baseCheck;
 
-    if (key && Object.keys(data).length === 0) {
-      return {
-        code: 1,
-        message: "Data is required",
-      };
-    }
-
-    if (
-      !data.class_code ||
-      (typeof data.class_code !== "string" && data.class_code.trim() === "")
-    ) {
-      return {
-        code: 1,
-        message: `Class code is required ${key ? "for item " + key : ""}`,
-      };
-    }
-
-    const cls = await ClassesModel.find(["id"], {
-      code: data.class_code,
-    });
-
-    if (!cls || !cls.id) {
-      return {
-        code: 1,
-        message: "Class not exist!",
-      };
-    }
-
-    if (!data.day || (typeof data.day !== "string" && data.day.trim() === "")) {
+    if (!data.day || data.day.trim() === "") {
       return {
         code: 1,
         message: `Day is required ${key ? "for student " + key : ""}`,
       };
     }
 
-    if (!moment(data.day, "YYYY-MM-DD").isValid()) {
-      return {
-        code: 1,
-        message: `Invalid date format ${
-          key ? "for item " + key : ""
-        }. Required format: YYYY-MM-DD`,
-      };
-    }
+    const dateCheck = this.validateDateFormat(data.day);
+    if (dateCheck.code !== 0) return dateCheck;
 
     return {
       code: 0,
@@ -63,6 +78,12 @@ class DailyCheckinValidator {
   }
 
   static async validateCheckInData(item, key) {
+    const extraFieldCheck = this.checkExtraFields(
+      item,
+      this.ALLOWED_CREATE_CHECKIN_FIELDS
+    );
+    if (extraFieldCheck.code !== 0) return extraFieldCheck;
+
     if (!item.class_session) {
       return {
         code: 1,
@@ -89,26 +110,11 @@ class DailyCheckinValidator {
       };
     }
 
-    if (
-      !item.student_code ||
-      (typeof item.student_code !== "string" && item.student_code.trim() === "")
-    ) {
-      return {
-        code: 1,
-        message: `Student code is required for item ${key}`,
-      };
-    }
-
-    const std = await StudentModel.find(["id"], {
-      code: item.student_code,
-    });
-
-    if (!std || !std.id) {
-      return {
-        code: 1,
-        message: `Student not exist for item ${key}`,
-      };
-    }
+    const studentCheck = await this.validateStudentExists(
+      item.student_code,
+      key
+    );
+    if (studentCheck.code !== 0) return studentCheck;
 
     if (type.id === 4) {
       if (!item.reason_id) {
@@ -117,12 +123,12 @@ class DailyCheckinValidator {
           message: `Reason ID is required for student ${item.student_code}`,
         };
       }
-      const rs = await ConfigModel.find(["id"], {
+      const reason = await ConfigModel.find(["id"], {
         id: item.reason_id,
         properties: 32,
       });
 
-      if (!rs || !rs.id) {
+      if (!reason || !reason.id) {
         return {
           code: 1,
           message: `Reason ID not exist for student ${item.student_code}`,
@@ -130,19 +136,9 @@ class DailyCheckinValidator {
       }
     }
 
-    if (item.comment !== undefined && item.comment !== null) {
-      if (typeof item.comment !== "string") {
-        return {
-          code: 1,
-          message: `Comment must be a string for student ${item.student_code}`,
-        };
-      }
-      if (item.comment.length > 1000) {
-        return {
-          code: 1,
-          message: `Comment length exceeds maximum limit for student ${item.student_code}`,
-        };
-      }
+    if (item.comment !== undefined) {
+      const commentCheck = this.validateStringField(item.comment, "Comment");
+      if (commentCheck.code !== 0) return commentCheck;
     }
 
     return {
@@ -151,27 +147,135 @@ class DailyCheckinValidator {
     };
   }
 
-  static async validateEvaluationData(item, key) {
+  static validateClassSession(data) {
+    if (typeof data.class_session === "string") {
+      try {
+        data.class_session = JSON.parse(data.class_session);
+      } catch (error) {
+        return {
+          code: 1,
+          message: "Invalid class session format",
+        };
+      }
+    }
+
+    if (!Array.isArray(data.class_session)) {
+      return {
+        code: 1,
+        message: "Class session must be an array",
+      };
+    }
+
     if (
-      !item.student_code ||
-      (typeof item.student_code !== "string" && item.student_code.trim() === "")
+      !data.class_session.every(
+        (session) => typeof session === "number" && Number.isInteger(session)
+      )
     ) {
       return {
         code: 1,
-        message: `Student code is required for item ${key}`,
+        message: "Class session must be an array of integers",
       };
     }
 
-    const student = await StudentModel.find(["id"], {
-      code: item.student_code,
-    });
+    return {
+      code: 0,
+      message: "Validation passed",
+    };
+  }
 
-    if (!student || !student.id) {
+  static async create(data) {
+    try {
+      const minMaxCheck = this.validateMinMax(data);
+      if (minMaxCheck.code !== 0) return minMaxCheck;
+
+      for (const key of Object.keys(data)) {
+        const student = data[key];
+
+        const extraFieldCheck = this.checkExtraFields(
+          student,
+          this.ALLOWED_CREATE_MAIN_FIELDS
+        );
+        if (extraFieldCheck.code !== 0) return extraFieldCheck;
+
+        const basicCheck = await this.validateBasicData(student, key);
+        if (basicCheck.code !== 0) return basicCheck;
+
+        if (!student.created_by) {
+          return {
+            code: 1,
+            message: `Created by is required for student ${key}`,
+          };
+        }
+
+        if (
+          !student.check_in ||
+          !Array.isArray(student.check_in) ||
+          student.check_in.length === 0
+        ) {
+          return {
+            code: 1,
+            message: `Check-in is required and must be an array for student ${key}`,
+          };
+        }
+
+        for (const item of student.check_in) {
+          const checkInCheck = await this.validateCheckInData(item, key);
+          if (checkInCheck.code !== 0) return checkInCheck;
+        }
+      }
+
+      return {
+        code: 0,
+        message: "Validation passed",
+      };
+    } catch (error) {
+      console.error("Validation error:", error);
       return {
         code: 1,
-        message: `Student not exist for item ${key}`,
+        message: "Internal validation error",
       };
     }
+  }
+
+  static async validateGetListStudentCheckinByClass(data) {
+    try {
+      const extraFieldCheck = this.checkExtraFields(
+        data,
+        this.ALLOWED_GET_LIST_FIELDS
+      );
+      if (extraFieldCheck.code !== 0) return extraFieldCheck;
+
+      const basicCheck = await this.validateBasicData(data);
+      if (basicCheck.code !== 0) return basicCheck;
+
+      const sessionCheck = this.validateClassSession(data);
+      if (sessionCheck.code !== 0) return sessionCheck;
+
+      return {
+        code: 0,
+        message: "Validation passed",
+      };
+    } catch (error) {
+      console.error("Validation error:", error);
+      return {
+        code: 1,
+        message: "Internal validation error",
+      };
+    }
+  }
+
+  static async validateEvaluationData(item, key) {
+    const detailFieldCheck = this.checkExtraFields(
+      item,
+      this.ALLOWED_EVALUATION_DETAIL_FIELDS
+    );
+    if (detailFieldCheck.code !== 0) return detailFieldCheck;
+
+    const studentCheck = await this.validateStudentExists(
+      item.student_code,
+      ""
+    );
+    if (studentCheck.code !== 0) return studentCheck;
 
     const fieldValidations = {
       attendance: { properties: 24 },
@@ -253,154 +357,22 @@ class DailyCheckinValidator {
     };
   }
 
-  static validateMinMax(data) {
-    if (!data || Object.keys(data).length === 0) {
-      return {
-        code: 1,
-        message: "Data is required",
-      };
-    }
-    if (Object.keys(data).length > 20) {
-      return {
-        code: 1,
-        message: "Maximum data length is 20",
-      };
-    }
-
-    return {
-      code: 0,
-      message: "Data validation passed",
-    };
-  }
-
-  static async create(data) {
-    try {
-      const x = this.validateMinMax(data);
-      if (x.code !== 0) {
-        return x;
-      }
-
-      for (const key of Object.keys(data)) {
-        const student = data[key];
-
-        const y = await this.validateBasicData(student, key);
-        if (y.code !== 0) {
-          return y;
-        }
-
-        if (!student.created_by) {
-          return {
-            code: 1,
-            message: `Created by is required for student ${key}`,
-          };
-        }
-
-        if (
-          !student.check_in ||
-          !Array.isArray(student.check_in) ||
-          student.check_in.length === 0
-        ) {
-          return {
-            code: 1,
-            message: `Check-in is required and must be an array for student ${key}`,
-          };
-        }
-
-        for (const item of student.check_in) {
-          const z = await this.validateCheckInData(item, key);
-          if (z.code !== 0) {
-            return z;
-          }
-        }
-      }
-
-      return {
-        code: 0,
-        message: "Validation passed",
-      };
-    } catch (error) {
-      console.error("Validation error:", error);
-      return {
-        code: 1,
-        message: "Internal validation error",
-      };
-    }
-  }
-
-  static async validateGetListStudentCheckinByClass(data) {
-    try {
-      const x = await this.validateBasicData(data);
-      if (x.code !== 0) {
-        return x;
-      }
-
-      const y = this.validatClassSession(data);
-      if (y.code !== 0) {
-        return y;
-      }
-
-      return {
-        code: 0,
-        message: "Validation passed",
-      };
-    } catch (error) {
-      console.error("Validation error:", error);
-      return {
-        code: 1,
-        message: "Internal validation error",
-      };
-    }
-  }
-
-  static validatClassSession(data) {
-    if (typeof data.class_session === "string") {
-      try {
-        data.class_session = JSON.parse(data.class_session);
-      } catch (error) {
-        return {
-          code: 1,
-          message: `Invalid class session format`,
-        };
-      }
-    }
-
-    if (!Array.isArray(data.class_session)) {
-      return {
-        code: 1,
-        message: `Class session must be an array`,
-      };
-    }
-
-    if (
-      !data.class_session.every(
-        (session) => typeof session === "number" && Number.isInteger(session)
-      )
-    ) {
-      return {
-        code: 1,
-        message: `Class session must be an array of integers`,
-      };
-    }
-    return {
-      code: 0,
-      message: "Validation passed",
-    };
-  }
-
   static async evaluation(data) {
     try {
-      const x = this.validateMinMax(data);
-      if (x.code !== 0) {
-        return x;
-      }
+      const minMaxCheck = this.validateMinMax(data);
+      if (minMaxCheck.code !== 0) return minMaxCheck;
 
       for (const key of Object.keys(data)) {
         const student = data[key];
 
-        const y = await this.validateBasicData(student, key);
-        if (y.code !== 0) {
-          return y;
-        }
+        const extraFieldCheck = this.checkExtraFields(
+          student,
+          this.ALLOWED_EVALUATION_MAIN_FIELDS
+        );
+        if (extraFieldCheck.code !== 0) return extraFieldCheck;
+
+        const basicCheck = await this.validateBasicData(student);
+        if (basicCheck.code !== 0) return basicCheck;
 
         if (!student.created_by) {
           return {
@@ -411,9 +383,7 @@ class DailyCheckinValidator {
 
         for (const item of student.evaluation) {
           const z = await this.validateEvaluationData(item, key);
-          if (z.code !== 0) {
-            return z;
-          }
+          if (z.code !== 0) return z;
         }
       }
 
@@ -432,37 +402,23 @@ class DailyCheckinValidator {
 
   static async getStudentEvaluation(data) {
     try {
-      const x = await this.validateBasicData(data);
-      if (x.code !== 0) {
-        return x;
-      }
+      const extraFieldCheck = this.checkExtraFields(
+        data,
+        this.ALLOWED_GET_STUDENT_EVALUATION_FIELDS
+      );
+      if (extraFieldCheck.code !== 0) return extraFieldCheck;
 
-      if (
-        !data.student_code ||
-        (typeof data.student_code !== "string" &&
-          data.student_code.trim() === "")
-      ) {
-        return {
-          code: 1,
-          message: "Student code is required",
-        };
-      }
+      const basicCheck = await this.validateBasicData(data);
+      if (basicCheck.code !== 0) return basicCheck;
 
-      const std = await StudentModel.find(["id"], {
-        code: data.student_code,
-      });
+      const studentCheck = await this.validateStudentExists(
+        data.student_code,
+        ""
+      );
+      if (studentCheck.code !== 0) return studentCheck;
 
-      if (!std || !std.id) {
-        return {
-          code: 1,
-          message: `Student not exist`,
-        };
-      }
-
-      const y = this.validatClassSession(data);
-      if (y.code !== 0) {
-        return y;
-      }
+      const sessionCheck = this.validateClassSession(data);
+      if (sessionCheck.code !== 0) return sessionCheck;
 
       return {
         code: 0,
