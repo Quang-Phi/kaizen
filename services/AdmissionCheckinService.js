@@ -16,6 +16,13 @@ class AdmissionCheckinService {
 
     for (const key in payload) {
       const item = payload[key];
+      const existingRecord = await AdmissionCheckinModel.findOne({
+        class_code: item.class_code,
+      });
+
+      if (existingRecord) {
+        return this.updateMainRecords(payload);
+      }
       const dailyCheckinItem = {
         class_code: item.class_code,
         created_by: item.created_by,

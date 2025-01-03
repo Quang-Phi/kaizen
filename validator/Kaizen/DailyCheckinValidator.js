@@ -16,7 +16,7 @@ class DailyCheckinValidator extends Validator {
     "comment",
   ];
 
-  static ALLOWED_GET_LIST_FIELDS = ["class_code", "day", "class_session"];
+  static ALLOWED_GET_LIST_FIELDS = ["class_code", "day", "class_session", "page", "pageSize"];
 
   static ALLOWED_EVALUATION_MAIN_FIELDS = [
     "class_code",

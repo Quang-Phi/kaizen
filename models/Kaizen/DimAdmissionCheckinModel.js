@@ -83,13 +83,9 @@ class DimAdmissionCheckinModel extends Model {
             ...item,
           });
         } else {
-          const insertQuery = await this.create(item);
           const [result] = await conn
             .promise()
-            .query(
-              `INSERT INTO ${this.table} (${insertQuery.columns}) VALUES ${insertQuery.placeholders}`,
-              insertQuery.values
-            );
+            .query(`INSERT INTO ${this.table} SET ?`, item);
 
           results.push({
             id: result.insertId,
@@ -103,30 +99,6 @@ class DimAdmissionCheckinModel extends Model {
     } catch (error) {
       console.error("Transaction Error:", error);
       await conn.promise().rollback();
-      throw error;
-    } finally {
-      await conn.end();
-    }
-  }
-
-  static async findByCheckinAndStudent(id_daily_checkin, student_code) {
-    const conn = await connection(1);
-    try {
-      const query = await this.where({
-        id_daily_checkin,
-        student_code,
-      });
-
-      const [rows] = await conn
-        .promise()
-        .query(
-          `SELECT * FROM ${this.table} WHERE ${query.wheres}`,
-          query.values
-        );
-
-      return rows[0] || null;
-    } catch (error) {
-      console.error("Query Error:", error);
       throw error;
     } finally {
       await conn.end();

@@ -10,7 +10,7 @@ class AdmissionCheckinValidator extends Validator {
     "comment",
   ];
 
-  static ALLOWED_GET_LIST_FIELDS = ["class_code"];
+  static ALLOWED_GET_LIST_FIELDS = ["class_code", "page", "pageSize"];
 
   static async validateCheckInData(item, key) {
     const extraFieldCheck = this.checkExtraFields(
